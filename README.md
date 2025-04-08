@@ -6,7 +6,8 @@
 
 A Prometheus exporter for [Accel-PPP](https://github.com/accel-ppp/accel-ppp) that exposes metrics from the `accel-cmd show stat` command.
 
->!NOTE This exporter has been tested with `accel-ppp` 1.12
+>[!NOTE]
+> This exporter has been tested with `accel-ppp` 1.12
 
 ## Features
 
