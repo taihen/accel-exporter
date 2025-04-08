@@ -65,6 +65,8 @@ scrape_configs:
 
 A Grafana dashboard is included in the `dashboards` directory. You can import it into your Grafana instance.
 
+![Grafana Dashboard.](dashboards/grafana.png)
+
 ## Building from Source
 
 ```bash
