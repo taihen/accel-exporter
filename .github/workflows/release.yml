@@ -25,12 +25,20 @@ jobs:
           go-version: "1.21"
 
       - name: Build binaries
-        id: build # Give the step an ID to potentially reference outputs if needed
+        id: build
         run: |
-          # Version will be determined by semantic-release, use placeholder or skip for build
-          # LDFLAGS can be simplified if version injection isn't strictly needed during this build
-          # Or semantic-release might provide the version as an env var later
-          LDFLAGS="" # Simplified for now, semantic-release handles the tag/release version
+          # Get version from semantic-release
+          VERSION=${GITHUB_REF#refs/tags/}
+          if [ "$VERSION" = "" ]; then
+            VERSION="dev"
+          fi
+          
+          # Get commit hash and build date
+          COMMIT=$(git rev-parse --short HEAD)
+          DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          
+          # Set ldflags for version injection
+          LDFLAGS="-X main.version=${VERSION} -X main.commit=${COMMIT} -X main.date=${DATE}"
           
           mkdir -p dist
           
