@@ -4,11 +4,13 @@
 [![Release](https://github.com/taihen/accel-exporter/actions/workflows/release.yml/badge.svg)](https://github.com/taihen/accel-exporter/actions/workflows/release.yml)
 [![Go Report Card](https://goreportcard.com/badge/github.com/taihen/accel-exporter)](https://goreportcard.com/report/github.com/taihen/accel-exporter)
 
-A Prometheus exporter for Accel-PPP that exposes metrics from the `accel-cmd show stat` command.
+A Prometheus exporter for [Accel-PPP](https://github.com/accel-ppp/accel-ppp) that exposes metrics from the `accel-cmd show stat` command.
+
+>!NOTE This exporter has been tested with `accel-ppp` 1.12
 
 ## Features
 
-- Exposes all metrics from `accel-cmd show stat` as Prometheus metrics
+- Exposes all metrics from `accel-cmd show stat` as Prometheus metrics (have to have access rights to issue command)
 - Configurable listen address (default: :9101)
 - Configurable metrics path (default: /metrics)
 - Configurable path to `accel-cmd` binary
