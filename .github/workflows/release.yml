@@ -62,19 +62,4 @@ jobs:
         # Add configuration via .releaserc.json or here if needed
         # Example inline config (if not using .releaserc.json):
         # config: |
-        #   {
-        #     "branches": ["main"],
-        #     "plugins": [
-        #       "@semantic-release/commit-analyzer",
-        #       "@semantic-release/release-notes-generator",
-        #       ["@semantic-release/github", {
-        #         "assets": [
-        #           {"path": "dist/*.*", "label": "Distribution Assets"}
-        #         ]
-        #       }],
-        #       ["@semantic-release/git", {
-        #          "assets": ["CHANGELOG.md", "package.json"], // Example if you add these
-        #          "message": "chore(release): ${nextRelease.version} [skip ci]\n\n${nextRelease.notes}"
-        #       }]
-        #     ]
-        #   }
+
