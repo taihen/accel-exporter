@@ -41,33 +41,33 @@ type AccelCollector struct {
 	pppoeStarting    prometheus.Gauge
 	pppoeActive      prometheus.Gauge
 	pppoeDelayedPADO prometheus.Gauge
-	pppoeRecvPADI    prometheus.Gauge // Changed from Counter
-	pppoeDropPADI    prometheus.Gauge // Changed from Counter
-	pppoeSentPADO    prometheus.Gauge // Changed from Counter
-	pppoeRecvPADR    prometheus.Gauge // Changed from Counter
-	pppoeRecvPADRDup prometheus.Gauge // Changed from Counter
-	pppoeSentPADS    prometheus.Gauge // Changed from Counter
-	pppoeFiltered    prometheus.Gauge // Changed from Counter
+	pppoeRecvPADI    prometheus.Gauge
+	pppoeDropPADI    prometheus.Gauge
+	pppoeSentPADO    prometheus.Gauge
+	pppoeRecvPADR    prometheus.Gauge
+	pppoeRecvPADRDup prometheus.Gauge
+	pppoeSentPADS    prometheus.Gauge
+	pppoeFiltered    prometheus.Gauge
 
 	// RADIUS metrics
 	radiusState            *prometheus.GaugeVec
-	radiusFailCount        *prometheus.GaugeVec // Changed from CounterVec
+	radiusFailCount        *prometheus.GaugeVec
 	radiusRequestCount     *prometheus.GaugeVec
 	radiusQueueLength      *prometheus.GaugeVec
-	radiusAuthSent         *prometheus.GaugeVec // Changed from CounterVec
-	radiusAuthLostTotal    *prometheus.GaugeVec // Changed from CounterVec
+	radiusAuthSent         *prometheus.GaugeVec
+	radiusAuthLostTotal    *prometheus.GaugeVec
 	radiusAuthLost5m       *prometheus.GaugeVec
 	radiusAuthLost1m       *prometheus.GaugeVec
 	radiusAuthAvgTime5m    *prometheus.GaugeVec
 	radiusAuthAvgTime1m    *prometheus.GaugeVec
-	radiusAcctSent         *prometheus.GaugeVec // Changed from CounterVec
-	radiusAcctLostTotal    *prometheus.GaugeVec // Changed from CounterVec
+	radiusAcctSent         *prometheus.GaugeVec
+	radiusAcctLostTotal    *prometheus.GaugeVec
 	radiusAcctLost5m       *prometheus.GaugeVec
 	radiusAcctLost1m       *prometheus.GaugeVec
 	radiusAcctAvgTime5m    *prometheus.GaugeVec
 	radiusAcctAvgTime1m    *prometheus.GaugeVec
-	radiusInterimSent      *prometheus.GaugeVec // Changed from CounterVec
-	radiusInterimLostTotal *prometheus.GaugeVec // Changed from CounterVec
+	radiusInterimSent      *prometheus.GaugeVec
+	radiusInterimLostTotal *prometheus.GaugeVec
 	radiusInterimLost5m    *prometheus.GaugeVec
 	radiusInterimLost1m    *prometheus.GaugeVec
 	radiusInterimAvgTime5m *prometheus.GaugeVec
@@ -179,31 +179,31 @@ func NewAccelCollector(accelCmdPath string) *AccelCollector {
 			Name: "accel_pppoe_delayed_pado",
 			Help: "Number of delayed PADO packets.",
 		}),
-		pppoeRecvPADI: prometheus.NewGauge(prometheus.GaugeOpts{ // Changed from NewCounter
+		pppoeRecvPADI: prometheus.NewGauge(prometheus.GaugeOpts{
 			Name: "accel_pppoe_recv_padi_total",
 			Help: "Total received PADI packets.",
 		}),
-		pppoeDropPADI: prometheus.NewGauge(prometheus.GaugeOpts{ // Changed from NewCounter
+		pppoeDropPADI: prometheus.NewGauge(prometheus.GaugeOpts{
 			Name: "accel_pppoe_drop_padi_total",
 			Help: "Total dropped PADI packets.",
 		}),
-		pppoeSentPADO: prometheus.NewGauge(prometheus.GaugeOpts{ // Changed from NewCounter
+		pppoeSentPADO: prometheus.NewGauge(prometheus.GaugeOpts{
 			Name: "accel_pppoe_sent_pado_total",
 			Help: "Total sent PADO packets.",
 		}),
-		pppoeRecvPADR: prometheus.NewGauge(prometheus.GaugeOpts{ // Changed from NewCounter
+		pppoeRecvPADR: prometheus.NewGauge(prometheus.GaugeOpts{
 			Name: "accel_pppoe_recv_padr_total",
 			Help: "Total received PADR packets.",
 		}),
-		pppoeRecvPADRDup: prometheus.NewGauge(prometheus.GaugeOpts{ // Changed from NewCounter
+		pppoeRecvPADRDup: prometheus.NewGauge(prometheus.GaugeOpts{
 			Name: "accel_pppoe_recv_padr_dup_total",
 			Help: "Total received duplicate PADR packets.",
 		}),
-		pppoeSentPADS: prometheus.NewGauge(prometheus.GaugeOpts{ // Changed from NewCounter
+		pppoeSentPADS: prometheus.NewGauge(prometheus.GaugeOpts{
 			Name: "accel_pppoe_sent_pads_total",
 			Help: "Total sent PADS packets.",
 		}),
-		pppoeFiltered: prometheus.NewGauge(prometheus.GaugeOpts{ // Changed from NewCounter
+		pppoeFiltered: prometheus.NewGauge(prometheus.GaugeOpts{
 			Name: "accel_pppoe_filtered_total",
 			Help: "Total filtered PPPoE packets.",
 		}),
@@ -216,7 +216,7 @@ func NewAccelCollector(accelCmdPath string) *AccelCollector {
 			},
 			radiusLabels,
 		),
-		radiusFailCount: prometheus.NewGaugeVec( // Changed from NewCounterVec
+		radiusFailCount: prometheus.NewGaugeVec(
 			prometheus.GaugeOpts{
 				Name: "accel_radius_fail_count_total",
 				Help: "Total RADIUS server fail count.",
@@ -237,14 +237,14 @@ func NewAccelCollector(accelCmdPath string) *AccelCollector {
 			},
 			radiusLabels,
 		),
-		radiusAuthSent: prometheus.NewGaugeVec( // Changed from NewCounterVec
+		radiusAuthSent: prometheus.NewGaugeVec(
 			prometheus.GaugeOpts{
 				Name: "accel_radius_auth_sent_total",
 				Help: "Total RADIUS auth packets sent.",
 			},
 			radiusLabels,
 		),
-		radiusAuthLostTotal: prometheus.NewGaugeVec( // Changed from NewCounterVec
+		radiusAuthLostTotal: prometheus.NewGaugeVec(
 			prometheus.GaugeOpts{
 				Name: "accel_radius_auth_lost_total",
 				Help: "Total RADIUS auth packets lost.",
@@ -279,14 +279,14 @@ func NewAccelCollector(accelCmdPath string) *AccelCollector {
 			},
 			radiusLabels,
 		),
-		radiusAcctSent: prometheus.NewGaugeVec( // Changed from NewCounterVec
+		radiusAcctSent: prometheus.NewGaugeVec(
 			prometheus.GaugeOpts{
 				Name: "accel_radius_acct_sent_total",
 				Help: "Total RADIUS accounting packets sent.",
 			},
 			radiusLabels,
 		),
-		radiusAcctLostTotal: prometheus.NewGaugeVec( // Changed from NewCounterVec
+		radiusAcctLostTotal: prometheus.NewGaugeVec(
 			prometheus.GaugeOpts{
 				Name: "accel_radius_acct_lost_total",
 				Help: "Total RADIUS accounting packets lost.",
@@ -321,14 +321,14 @@ func NewAccelCollector(accelCmdPath string) *AccelCollector {
 			},
 			radiusLabels,
 		),
-		radiusInterimSent: prometheus.NewGaugeVec( // Changed from NewCounterVec
+		radiusInterimSent: prometheus.NewGaugeVec(
 			prometheus.GaugeOpts{
 				Name: "accel_radius_interim_sent_total",
 				Help: "Total RADIUS interim accounting packets sent.",
 			},
 			radiusLabels,
 		),
-		radiusInterimLostTotal: prometheus.NewGaugeVec( // Changed from NewCounterVec
+		radiusInterimLostTotal: prometheus.NewGaugeVec(
 			prometheus.GaugeOpts{
 				Name: "accel_radius_interim_lost_total",
 				Help: "Total RADIUS interim accounting packets lost.",

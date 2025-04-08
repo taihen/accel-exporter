@@ -11,14 +11,14 @@ import (
 
 // Stats represents all statistics gathered from accel-cmd
 type Stats struct {
-	Uptime         float64
-	CPUPercent     float64
-	MemRSS         float64
-	MemVirt        float64
-	Core           CoreStats
-	Sessions       SessionStats
-	PPPoE          PPPoEStats
-	RadiusServers  map[string]RadiusStats
+	Uptime        float64
+	CPUPercent    float64
+	MemRSS        float64
+	MemVirt       float64
+	Core          CoreStats
+	Sessions      SessionStats
+	PPPoE         PPPoEStats
+	RadiusServers map[string]RadiusStats
 }
 
 // CoreStats contains core metrics
@@ -59,28 +59,28 @@ type PPPoEStats struct {
 
 // RadiusStats contains RADIUS server metrics
 type RadiusStats struct {
-	ID             string
-	IP             string
-	State          string
-	FailCount      float64
-	RequestCount   float64
-	QueueLength    float64
-	AuthSent       float64
-	AuthLostTotal  float64
-	AuthLost5m     float64
-	AuthLost1m     float64
-	AuthAvgTime5m  float64
-	AuthAvgTime1m  float64
-	AcctSent       float64
-	AcctLostTotal  float64
-	AcctLost5m     float64
-	AcctLost1m     float64
-	AcctAvgTime5m  float64
-	AcctAvgTime1m  float64
-	InterimSent    float64
+	ID               string
+	IP               string
+	State            string
+	FailCount        float64
+	RequestCount     float64
+	QueueLength      float64
+	AuthSent         float64
+	AuthLostTotal    float64
+	AuthLost5m       float64
+	AuthLost1m       float64
+	AuthAvgTime5m    float64
+	AuthAvgTime1m    float64
+	AcctSent         float64
+	AcctLostTotal    float64
+	AcctLost5m       float64
+	AcctLost1m       float64
+	AcctAvgTime5m    float64
+	AcctAvgTime1m    float64
+	InterimSent      float64
 	InterimLostTotal float64
-	InterimLost5m  float64
-	InterimLost1m  float64
+	InterimLost5m    float64
+	InterimLost1m    float64
 	InterimAvgTime5m float64
 	InterimAvgTime1m float64
 }
@@ -125,8 +125,8 @@ func parseStats(output string) (*Stats, error) {
 			continue
 		}
 
-		key := strings.TrimSpace(parts[0]) // Corrected index
-		value := strings.TrimSpace(parts[1]) // Corrected index
+		key := strings.TrimSpace(parts[0])
+		value := strings.TrimSpace(parts[1])
 
 		switch section {
 		case "":
@@ -141,16 +141,15 @@ func parseStats(output string) (*Stats, error) {
 			if strings.HasPrefix(section, "radius") {
 				radiusMatch := regexp.MustCompile(`radius\((\d+), ([\d\.]+)\)`).FindStringSubmatch(section)
 				if len(radiusMatch) == 3 {
-					radiusID := radiusMatch[1] // Corrected index
-					radiusIP := radiusMatch[2] // Corrected index
-					
+					radiusID := radiusMatch[1]
+					radiusIP := radiusMatch[2]
 					if _, exists := stats.RadiusServers[radiusID]; !exists {
 						stats.RadiusServers[radiusID] = RadiusStats{
 							ID: radiusID,
 							IP: radiusIP,
 						}
 					}
-					
+
 					rs := stats.RadiusServers[radiusID]
 					parseRadiusSection(&rs, key, value)
 					stats.RadiusServers[radiusID] = rs
@@ -180,25 +179,24 @@ func parseUptime(value string) float64 {
 	if len(parts) != 2 {
 		return 0
 	}
-	
-	days, err := strconv.ParseFloat(parts[0], 64) // Corrected index
+
+	days, err := strconv.ParseFloat(parts[0], 64)
 	if err != nil {
 		return 0
 	}
-	
-	timeParts := strings.Split(parts[1], ":") // Corrected index
+
+	timeParts := strings.Split(parts[1], ":")
 	if len(timeParts) != 3 {
 		return 0
 	}
-	
-	hours, _ := strconv.ParseFloat(timeParts[0], 64) // Corrected index
-	minutes, _ := strconv.ParseFloat(timeParts[1], 64) // Corrected index
-	seconds, _ := strconv.ParseFloat(timeParts[2], 64) // Corrected index
-	
+
+	hours, _ := strconv.ParseFloat(timeParts[0], 64)
+	minutes, _ := strconv.ParseFloat(timeParts[1], 64)
+	seconds, _ := strconv.ParseFloat(timeParts[2], 64)
+
 	return days*86400 + hours*3600 + minutes*60 + seconds
 }
 
-// Placeholder for parsePercentage - needs implementation
 func parsePercentage(value string) float64 {
 	// Example: "1.23%"
 	trimmed := strings.TrimSuffix(value, "%")
@@ -206,7 +204,6 @@ func parsePercentage(value string) float64 {
 	return f
 }
 
-// Placeholder for parseMemory - needs implementation
 func parseMemory(stats *Stats, value string) {
 	// Example: "12345 / 67890 K"
 	parts := strings.Split(strings.TrimSuffix(value, " K"), "/")
@@ -218,7 +215,6 @@ func parseMemory(stats *Stats, value string) {
 	}
 }
 
-// Placeholder for parseCoreSection - needs implementation
 func parseCoreSection(core *CoreStats, key, value string) {
 	// Implement parsing logic based on key
 	switch key {
@@ -268,7 +264,6 @@ func parseCoreSection(core *CoreStats, key, value string) {
 	}
 }
 
-// Placeholder for parseSessionsSection - needs implementation
 func parseSessionsSection(sessions *SessionStats, key, value string) {
 	f, _ := strconv.ParseFloat(value, 64)
 	switch key {
@@ -281,7 +276,6 @@ func parseSessionsSection(sessions *SessionStats, key, value string) {
 	}
 }
 
-// Placeholder for parsePPPoESection - needs implementation
 func parsePPPoESection(pppoe *PPPoEStats, key, value string) {
 	f, _ := strconv.ParseFloat(value, 64)
 	switch key {
@@ -308,7 +302,6 @@ func parsePPPoESection(pppoe *PPPoEStats, key, value string) {
 	}
 }
 
-// Placeholder for parseRadiusSection - needs implementation
 func parseRadiusSection(radius *RadiusStats, key, value string) {
 	f, _ := strconv.ParseFloat(value, 64)
 	switch key {
@@ -382,6 +375,3 @@ func parseRadiusSection(radius *RadiusStats, key, value string) {
 		}
 	}
 }
-
-// Additional parsing functions for other sections...
-// Implementation would continue with parseCoreSection, parseSessionsSection, etc.
