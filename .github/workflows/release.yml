@@ -11,7 +11,7 @@ permissions:
 jobs:
   release:
     name: Create Release
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
       - name: Download and build glibc 2.31 # Build glibc 2.31 for older distros which are still on servers
         run: |
