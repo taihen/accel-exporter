@@ -11,7 +11,7 @@ permissions:
 jobs:
   release: # Renamed job for clarity
     name: Create Release
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04 # Changed runner to ensure GLIBC compatibility
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
