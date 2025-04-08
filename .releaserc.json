@@ -5,7 +5,12 @@
     "@semantic-release/release-notes-generator",
     ["@semantic-release/github", {
       "assets": [
-        {"path": "dist/*", "label": "Distribution Assets"}
+        {"path": "dist/accel-exporter-linux-amd64"},
+        {"path": "dist/accel-exporter-linux-arm64"},
+        {"path": "dist/accel-exporter-darwin-amd64"},
+        {"path": "dist/accel-exporter-darwin-arm64"},
+        {"path": "dist/accel-exporter-windows-amd64.exe"},
+        {"path": "dist/checksums.txt"}
       ]
     }],
     ["@semantic-release/git", {
