@@ -1,17 +1,23 @@
 name: Release
 
 on:
-  release:
-    types:
-      - created
+  push:
+    branches:
+      - main # Trigger on pushes to the main branch
+
+permissions:
+  contents: write # Needed to create releases and push tags
 
 jobs:
-  build:
-    name: Build Release Assets
+  release: # Renamed job for clarity
+    name: Create Release
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
+        with:
+          # Fetch all history and tags for semantic-release
+          fetch-depth: 0
 
       - name: Set up Go
         uses: actions/setup-go@v4
@@ -19,11 +25,12 @@ jobs:
           go-version: "1.21"
 
       - name: Build binaries
+        id: build # Give the step an ID to potentially reference outputs if needed
         run: |
-          VERSION=${GITHUB_REF#refs/tags/}
-          COMMIT=${GITHUB_SHA}
-          DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-          LDFLAGS="-X main.version=${VERSION} -X main.commit=${COMMIT} -X main.date=${DATE}"
+          # Version will be determined by semantic-release, use placeholder or skip for build
+          # LDFLAGS can be simplified if version injection isn't strictly needed during this build
+          # Or semantic-release might provide the version as an env var later
+          LDFLAGS="" # Simplified for now, semantic-release handles the tag/release version
           
           mkdir -p dist
           
@@ -37,17 +44,37 @@ jobs:
         run: |
           cd dist
           sha256sum * > checksums.txt
+          cd .. # Go back to the root directory
 
-      - name: Upload release assets
-        uses: actions/upload-artifact@v3
+      - name: Semantic Release
+        uses: cycjimmy/semantic-release-action@v4
         with:
-          name: release-binaries
-          path: dist/*
-
-      - name: Upload binaries to release
-        uses: softprops/action-gh-release@v1
-        with:
-          files: |
-            dist/*
+          # You might need to fine-tune branches and plugins if needed
+          # Default plugins usually include commit-analyzer, release-notes-generator, npm (can be ignored), github
+          extra_plugins: |
+            @semantic-release/git
+            @semantic-release/exec
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Configure @semantic-release/git to commit changes like updated checksums if needed (optional)
+          # Configure @semantic-release/github to upload assets
+          SEMANTIC_RELEASE_GITHUB_ASSETS: dist/*.* # Upload all files from dist
+        # Add configuration via .releaserc.json or here if needed
+        # Example inline config (if not using .releaserc.json):
+        # config: |
+        #   {
+        #     "branches": ["main"],
+        #     "plugins": [
+        #       "@semantic-release/commit-analyzer",
+        #       "@semantic-release/release-notes-generator",
+        #       ["@semantic-release/github", {
+        #         "assets": [
+        #           {"path": "dist/*.*", "label": "Distribution Assets"}
+        #         ]
+        #       }],
+        #       ["@semantic-release/git", {
+        #          "assets": ["CHANGELOG.md", "package.json"], // Example if you add these
+        #          "message": "chore(release): ${nextRelease.version} [skip ci]\n\n${nextRelease.notes}"
+        #       }]
+        #     ]
+        #   }
