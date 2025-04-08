@@ -1,0 +1,53 @@
+name: Release
+
+on:
+  release:
+    types:
+      - created
+
+jobs:
+  build:
+    name: Build Release Assets
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: "1.21"
+
+      - name: Build binaries
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/}
+          COMMIT=${GITHUB_SHA}
+          DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          LDFLAGS="-X main.version=${VERSION} -X main.commit=${COMMIT} -X main.date=${DATE}"
+          
+          mkdir -p dist
+          
+          GOOS=linux GOARCH=amd64 go build -ldflags "${LDFLAGS}" -o dist/accel-exporter-linux-amd64 ./cmd/accel-exporter
+          GOOS=linux GOARCH=arm64 go build -ldflags "${LDFLAGS}" -o dist/accel-exporter-linux-arm64 ./cmd/accel-exporter
+          GOOS=darwin GOARCH=amd64 go build -ldflags "${LDFLAGS}" -o dist/accel-exporter-darwin-amd64 ./cmd/accel-exporter
+          GOOS=darwin GOARCH=arm64 go build -ldflags "${LDFLAGS}" -o dist/accel-exporter-darwin-arm64 ./cmd/accel-exporter
+          GOOS=windows GOARCH=amd64 go build -ldflags "${LDFLAGS}" -o dist/accel-exporter-windows-amd64.exe ./cmd/accel-exporter
+
+      - name: Create checksums
+        run: |
+          cd dist
+          sha256sum * > checksums.txt
+
+      - name: Upload release assets
+        uses: actions/upload-artifact@v3
+        with:
+          name: release-binaries
+          path: dist/*
+
+      - name: Upload binaries to release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            dist/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
