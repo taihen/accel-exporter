@@ -9,10 +9,21 @@ permissions:
   contents: write # Needed to create releases and push tags
 
 jobs:
-  release: # Renamed job for clarity
+  release:
     name: Create Release
-    runs-on: ubuntu-20.04 # Changed runner to ensure GLIBC compatibility
+    runs-on: ubuntu-latest
     steps:
+      - name: Download and build glibc 2.31 # Build glibc 2.31 for older distros which are still on servers
+        run: |
+          wget http://ftp.gnu.org/gnu/libc/glibc-2.31.tar.gz
+          tar -xzf glibc-2.31.tar.gz
+          mkdir glibc-2.31/build && cd glibc-2.31/build
+          ../configure --prefix=$HOME/glibc-2.31
+          make -j$(nproc) && make install
+
+      - name: Build with custom glibc
+        run: |
+          gcc -o myapp src/main.c -Wl,--rpath=$HOME/glibc-2.31/lib
       - name: Checkout code
         uses: actions/checkout@v4
         with:
@@ -42,8 +53,8 @@ jobs:
 
           mkdir -p dist
 
-          GOOS=linux GOARCH=amd64 go build -ldflags "${LDFLAGS}" -o dist/accel-exporter-linux-amd64 ./cmd/accel-exporter
-          GOOS=linux GOARCH=arm64 go build -ldflags "${LDFLAGS}" -o dist/accel-exporter-linux-arm64 ./cmd/accel-exporter
+          LD_LIBRARY_PATH=$HOME/glibc-2.31/lib GOOS=linux GOARCH=amd64 go build -ldflags "${LDFLAGS}" -o dist/accel-exporter-linux-amd64 ./cmd/accel-exporter
+          LD_LIBRARY_PATH=$HOME/glibc-2.31/lib GOOS=linux GOARCH=arm64 go build -ldflags "${LDFLAGS}" -o dist/accel-exporter-linux-arm64 ./cmd/accel-exporter
           GOOS=darwin GOARCH=amd64 go build -ldflags "${LDFLAGS}" -o dist/accel-exporter-darwin-amd64 ./cmd/accel-exporter
           GOOS=darwin GOARCH=arm64 go build -ldflags "${LDFLAGS}" -o dist/accel-exporter-darwin-arm64 ./cmd/accel-exporter
 
