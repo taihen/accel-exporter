@@ -6,6 +6,8 @@
 
 A Prometheus exporter for [Accel-PPP](https://github.com/accel-ppp/accel-ppp) that exposes metrics from the `accel-cmd show stat` command.
 
+Some small story behind this exporter on my [blog](https://taihen.org/posts/accel-exporter/).
+
 ## Minimum Requirements
 
 - Go 1.24 or higher (that what I'm using, most likely is compatible down to Go 1.20)
