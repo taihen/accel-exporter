@@ -16,7 +16,6 @@ Some small story behind this exporter on my [blog](https://taihen.org/posts/acce
 
 >[!NOTE]
 > This exporter has been tested with `accel-ppp`:
-
 > - 1.12
 
 ## Features
