@@ -37,7 +37,7 @@ func NewConfig() *Config {
 	}
 
 	if envMetricsPath := os.Getenv("ACCEL_EXPORTER_METRICS_PATH"); envMetricsPath != "" {
-		cfg.ListenAddress = envMetricsPath
+		cfg.MetricsPath = envMetricsPath
 	}
 
 	if envPath := os.Getenv("ACCEL_EXPORTER_PATH"); envPath != "" {
