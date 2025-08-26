@@ -86,12 +86,20 @@ type RadiusStats struct {
 }
 
 // CollectStats executes accel-cmd and parses its output
-func CollectStats(accelCmdPath string) (*Stats, error) {
-	cmd := exec.Command(accelCmdPath, "show", "stat")
+func CollectStats(accelCmdPath, accelCmdPwd string) (*Stats, error) {
+	var args []string
+
+	if accelCmdPwd != "" {
+		args = []string{"--password", accelCmdPwd, "show", "stat"}
+	} else {
+		args = []string{"show", "stat"}
+	}
+
+	cmd := exec.Command(accelCmdPath, args...)
 	var out bytes.Buffer
 	cmd.Stdout = &out
-	err := cmd.Run()
-	if err != nil {
+
+	if err := cmd.Run(); err != nil {
 		return nil, err
 	}
 

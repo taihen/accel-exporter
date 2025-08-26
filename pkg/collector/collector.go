@@ -10,6 +10,7 @@ import (
 // AccelCollector implements the prometheus.Collector interface
 type AccelCollector struct {
 	accelCmdPath string
+	accelCmdPwd  string
 
 	// General metrics
 	up             prometheus.Gauge
@@ -75,11 +76,12 @@ type AccelCollector struct {
 }
 
 // NewAccelCollector creates a new AccelCollector
-func NewAccelCollector(accelCmdPath string) *AccelCollector {
+func NewAccelCollector(accelCmdPath, accelCmdPwd string) *AccelCollector {
 	radiusLabels := []string{"server_id", "server_ip"}
 
 	return &AccelCollector{
 		accelCmdPath: accelCmdPath,
+		accelCmdPwd:  accelCmdPwd,
 
 		up: prometheus.NewGauge(prometheus.GaugeOpts{
 			Name: "accel_up",
@@ -432,7 +434,7 @@ func (c *AccelCollector) Describe(ch chan<- *prometheus.Desc) {
 
 // Collect implements the prometheus.Collector interface
 func (c *AccelCollector) Collect(ch chan<- prometheus.Metric) {
-	stats, err := parser.CollectStats(c.accelCmdPath)
+	stats, err := parser.CollectStats(c.accelCmdPath, c.accelCmdPwd)
 	if err != nil {
 		c.up.Set(0)
 		c.scrapeFailures.Inc()
