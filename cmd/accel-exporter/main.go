@@ -30,7 +30,7 @@ func main() {
 	log.Printf("Listening on %s, metrics path: %s", cfg.ListenAddress, cfg.MetricsPath)
 
 	// Create and register collector
-	accelCollector := collector.NewAccelCollector(cfg.AccelCmdPath, cfg.AccelCmdPwd)
+	accelCollector := collector.NewAccelCollector(cfg.AccelCmdPath, cfg.AccelCmdPwd, cfg.AccelHost, cfg.AccelPort)
 	prometheus.MustRegister(accelCollector)
 
 	// Add version information

@@ -3,6 +3,7 @@ package config
 import (
 	"flag"
 	"os"
+	"strconv"
 )
 
 // Config holds the exporter configuration
@@ -11,6 +12,8 @@ type Config struct {
 	MetricsPath   string
 	AccelCmdPath  string
 	AccelCmdPwd   string
+	AccelHost     string
+	AccelPort     int
 	LogLevel      string
 }
 
@@ -22,6 +25,8 @@ func NewConfig() *Config {
 	flag.StringVar(&cfg.MetricsPath, "web.metrics-path", "/metrics", "Path under which to expose metrics")
 	flag.StringVar(&cfg.AccelCmdPath, "accel-cmd.path", "accel-cmd", "Path to accel-cmd binary")
 	flag.StringVar(&cfg.AccelCmdPwd, "accel-cmd.pwd", "", "Password to connect to accel-cmd")
+	flag.StringVar(&cfg.AccelHost, "accel-telnet.host", "", "Host to connect (preferred over accel-cmd.path)")
+	flag.IntVar(&cfg.AccelPort, "accel-telnet.port", 0, "Port to connect (preferred over accel-cmd.path)")
 	flag.StringVar(&cfg.LogLevel, "log.level", "info", "Log level (debug, info, warn, error)")
 
 	flag.Parse()
@@ -43,6 +48,15 @@ func NewConfig() *Config {
 		cfg.AccelCmdPwd = envPwd
 	}
 
+	if envHost := os.Getenv("ACCEL_EXPORTER_HOST"); envHost != "" {
+		cfg.AccelHost = envHost
+	}
+
+	if envPort := os.Getenv("ACCEL_EXPORTER_PORT"); envPort != "" {
+		if p, err := strconv.Atoi(envPort); err == nil {
+			cfg.AccelPort = p
+		}
+	}
 	if envLogLevel := os.Getenv("ACCEL_EXPORTER_LOG_LEVEL"); envLogLevel != "" {
 		cfg.LogLevel = envLogLevel
 	}
