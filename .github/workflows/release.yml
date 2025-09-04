@@ -80,6 +80,17 @@ jobs:
           VERSION=${VERSION#v}
           echo "version=${VERSION}" >> $GITHUB_OUTPUT
           echo "Building Debian package for version: $VERSION"
+      - name: Download pre-built binary
+        run: |
+          # Download the Linux AMD64 binary from the release
+          VERSION_TAG="v${{ steps.version.outputs.version }}"
+          BINARY_URL="https://github.com/${{ github.repository }}/releases/download/${VERSION_TAG}/accel-exporter-linux-amd64"
+          echo "Downloading binary from: $BINARY_URL"
+          mkdir -p dist
+          curl -L -o dist/accel-exporter "$BINARY_URL"
+          chmod +x dist/accel-exporter
+          echo "Downloaded binary version:"
+          ./dist/accel-exporter --version || echo "Binary downloaded successfully"
       - name: Generate changelog
         run: |
           # Generate changelog with actual version and date
@@ -100,18 +111,12 @@ jobs:
               set -e
               export DEBIAN_FRONTEND=noninteractive
 
-              # Install build dependencies
+              # Install minimal build dependencies (no golang needed for pre-built binary)
               apt-get update
               apt-get install -y \
                 build-essential \
                 debhelper \
-                devscripts \
-                golang-go \
-                git \
-                lsb-release
-
-              # Fix git safe directory issue (after git is installed)
-              git config --global --add safe.directory /workspace
+                devscripts
 
               # Build binary package only (faster and what we need)
               dpkg-buildpackage -us -uc -b
