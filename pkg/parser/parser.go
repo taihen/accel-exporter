@@ -3,10 +3,14 @@ package parser
 import (
 	"bufio"
 	"bytes"
+	"fmt"
+	"io"
+	"net"
 	"os/exec"
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // Stats represents all statistics gathered from accel-cmd
@@ -85,16 +89,95 @@ type RadiusStats struct {
 	InterimAvgTime1m float64
 }
 
-// CollectStats executes accel-cmd and parses its output
-func CollectStats(accelCmdPath string) (*Stats, error) {
-	cmd := exec.Command(accelCmdPath, "show", "stat")
+// CollectStats executes accel-cmd or uses telnet and parses its output
+func CollectStats(accelCmdPath, accelCmdPwd, accelHost string, accelPort int) (*Stats, error) {
+	if accelHost != "" && accelPort > 0 {
+		return collectViaTelnet(accelHost, accelPort, accelCmdPwd)
+	}
+	return collectViaCmd(accelCmdPath, accelCmdPwd)
+}
+
+func collectViaCmd(accelCmdPath, accelCmdPwd string) (*Stats, error) {
+	var args []string
+	if accelCmdPwd != "" {
+		args = []string{"--password", accelCmdPwd, "show", "stat"}
+	} else {
+		args = []string{"show", "stat"}
+	}
+
+	cmd := exec.Command(accelCmdPath, args...)
 	var out bytes.Buffer
 	cmd.Stdout = &out
-	err := cmd.Run()
-	if err != nil {
+
+	if err := cmd.Run(); err != nil {
 		return nil, err
 	}
 
+	return parseStats(out.String())
+}
+
+func collectViaTelnet(host string, port int, password string) (*Stats, error) {
+	// Connect to the remote host using TCP with a 5-second timeout
+	conn, err := net.DialTimeout("tcp", fmt.Sprintf("%s:%d", host, port), 5*time.Second)
+	if err != nil {
+		return nil, err
+	}
+	defer conn.Close() // Ensure connection is closed when function exits
+
+	var out bytes.Buffer
+	buf := make([]byte, 4096)
+
+	passwordSent := false
+	commandSent := false
+
+	// Set an initial read deadline to avoid blocking indefinitely
+	conn.SetDeadline(time.Now().Add(8 * time.Second))
+
+	for {
+		n, err := conn.Read(buf) // Read data from the TCP connection
+		if n > 0 {
+			chunk := string(buf[:n])
+			out.WriteString(chunk)
+
+			// 🔍 Temporary debug to print received data
+			//fmt.Println("RECV:", chunk)
+
+			// If a Password prompt is detected and we haven't sent the password yet
+			if !passwordSent && strings.Contains(chunk, "Password:") {
+				if password != "" {
+					// Send the password followed by CRLF (\r\n), which telnet expects
+					_, _ = conn.Write([]byte(password + "\r\n"))
+				}
+				passwordSent = true
+				// Extend the read deadline after sending the password
+				conn.SetDeadline(time.Now().Add(8 * time.Second))
+			}
+
+			// If the command prompt is detected and we haven't sent the command yet
+			if !commandSent && strings.Contains(chunk, "accel-ppp#") {
+				// Send the "show stat" command followed by CRLF
+				_, _ = conn.Write([]byte("show stat\r\n"))
+				commandSent = true
+				// Extend the read deadline for waiting the command output
+				conn.SetDeadline(time.Now().Add(8 * time.Second))
+				continue
+			}
+
+			// If we already sent the command and detect the prompt again, we're done
+			if commandSent && strings.Contains(chunk, "accel-ppp#") {
+				break
+			}
+		}
+
+		if err != nil {
+			if err == io.EOF {
+				break // Connection closed by remote host
+			}
+			return nil, err // Return other errors
+		}
+	}
+
+	// Parse the accumulated output and return the stats
 	return parseStats(out.String())
 }
 

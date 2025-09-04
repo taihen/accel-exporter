@@ -13,9 +13,9 @@ import (
 
 // Version information set by build flags
 var (
-	version = "dev"      // Semantic version from git tag
-	commit  = "unknown"  // Git commit hash
-	date    = "unknown"  // Build timestamp
+	version = "dev"     // Semantic version from git tag
+	commit  = "unknown" // Git commit hash
+	date    = "unknown" // Build timestamp
 )
 
 // versionInfo returns a formatted string with build information
@@ -30,7 +30,7 @@ func main() {
 	log.Printf("Listening on %s, metrics path: %s", cfg.ListenAddress, cfg.MetricsPath)
 
 	// Create and register collector
-	accelCollector := collector.NewAccelCollector(cfg.AccelCmdPath)
+	accelCollector := collector.NewAccelCollector(cfg.AccelCmdPath, cfg.AccelCmdPwd, cfg.AccelHost, cfg.AccelPort)
 	prometheus.MustRegister(accelCollector)
 
 	// Add version information
