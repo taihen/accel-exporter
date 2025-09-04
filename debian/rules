@@ -3,7 +3,8 @@
 export DH_VERBOSE = 1
 export GOCACHE = /tmp/go-build
 export GOPATH = $(CURDIR)/_build
-export PATH := /usr/lib/go-1.21/bin:$(PATH)
+# Use system's default Go installation
+export PATH := $(PATH)
 
 %:
 	dh $@

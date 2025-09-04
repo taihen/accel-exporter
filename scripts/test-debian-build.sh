@@ -40,6 +40,18 @@ else
     exit 1
 fi
 
+# Test version prefix stripping
+echo "Testing version prefix stripping..."
+TEST_VERSION_WITH_V="v1.2.3"
+STRIPPED_VERSION=${TEST_VERSION_WITH_V#v}
+
+if [ "$STRIPPED_VERSION" = "1.2.3" ]; then
+    echo "✓ Version prefix stripping works: $TEST_VERSION_WITH_V -> $STRIPPED_VERSION"
+else
+    echo "ERROR: Version prefix stripping failed: $TEST_VERSION_WITH_V -> $STRIPPED_VERSION"
+    exit 1
+fi
+
 # Check executable permissions
 if [ -x "debian/rules" ]; then
     echo "✓ debian/rules is executable"

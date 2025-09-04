@@ -88,6 +88,8 @@ jobs:
         id: version
         run: |
           VERSION=$(git describe --tags --abbrev=0 2>/dev/null || echo "dev")
+          # Strip 'v' prefix for Debian version compatibility
+          VERSION=${VERSION#v}
           echo "version=${VERSION}" >> $GITHUB_OUTPUT
           echo "Building Debian package for version: $VERSION"
 
