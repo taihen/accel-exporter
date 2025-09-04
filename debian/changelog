@@ -1,5 +1,5 @@
-accel-exporter (__VERSION__-1) unstable; urgency=medium
+accel-exporter (1.0.0-1) unstable; urgency=medium
 
-  * Automated release from tag __VERSION__
+  * Automated release from tag 1.0.0
 
- -- GitHub Actions <noreply@github.com>  __DATE__
+ -- GitHub Actions <noreply@github.com>  Thu, 04 Sep 2025 12:38:12 +0200
