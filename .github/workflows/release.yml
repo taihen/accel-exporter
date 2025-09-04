@@ -1,19 +1,16 @@
 name: Release
-
 on:
   push:
     branches:
       - main # Trigger on pushes to the main branch
-
 permissions:
   contents: write # Needed to create releases and push tags
-
 jobs:
   release:
     name: Create Release
     runs-on: ubuntu-22.04
     steps:
-      #- name: Download and build glibc 2.31 # Build glibc 2.31 for older distros which are still on servers
+      #- name: Download and build glibc 2.31  # Build glibc 2.31 for older distros which are still on servers
       #  run: |
       #    wget -q http://ftp.gnu.org/gnu/libc/glibc-2.31.tar.gz
       #    tar -xzf glibc-2.31.tar.gz
@@ -24,18 +21,15 @@ jobs:
       #- name: Build with custom glibc
       #  run: |
       #    gcc -o myapp src/main.c -Wl,--rpath=$HOME/glibc-2.31/lib
-
       - name: Checkout code
         uses: actions/checkout@v5
         with:
           # Fetch all history and tags for semantic-release
           fetch-depth: 0
-
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: "1.24"
-
+          go-version: '1.24'
       - name: Build binaries
         id: build
         run: |
@@ -51,39 +45,33 @@ jobs:
 
           # Set ldflags for version injection
           LDFLAGS="-X main.version=${VERSION} -X main.commit=${COMMIT} -X main.date=${DATE}"
-
           mkdir -p dist
-
           CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags "${LDFLAGS}" -o dist/accel-exporter-linux-amd64 ./cmd/accel-exporter
           CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -ldflags "${LDFLAGS}" -o dist/accel-exporter-linux-arm64 ./cmd/accel-exporter
           GOOS=darwin GOARCH=amd64 go build -ldflags "${LDFLAGS}" -o dist/accel-exporter-darwin-amd64 ./cmd/accel-exporter
           GOOS=darwin GOARCH=arm64 go build -ldflags "${LDFLAGS}" -o dist/accel-exporter-darwin-arm64 ./cmd/accel-exporter
-
       - name: Create checksums
         run: |
           cd dist
           sha256sum * > checksums.txt
-          cd .. # Go back to the root directory
-
+          cd ..  # Go back to the root directory
       - name: Semantic Release
         uses: cycjimmy/semantic-release-action@v5
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        # Configuration is now handled by .releaserc.json
-
+          # Configuration is now handled by .releaserc.json
   build-debian-packages:
     name: Build Debian Packages
     needs: release
     runs-on: ubuntu-22.04
     strategy:
       matrix:
-        debian_version: ["11", "12"]
+        debian_version: ['11', '12']
     steps:
       - name: Checkout code
         uses: actions/checkout@v5
         with:
           fetch-depth: 0
-
       - name: Get release version
         id: version
         run: |
@@ -92,7 +80,6 @@ jobs:
           VERSION=${VERSION#v}
           echo "version=${VERSION}" >> $GITHUB_OUTPUT
           echo "Building Debian package for version: $VERSION"
-
       - name: Generate changelog
         run: |
           # Generate changelog with actual version and date
@@ -100,10 +87,8 @@ jobs:
               -e "s/__DATE__/$(date -R)/" \
               debian/changelog > debian/changelog.tmp
           mv debian/changelog.tmp debian/changelog
-
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
-
       - name: Build Debian ${{ matrix.debian_version }} package
         run: |
           # Build package using Docker
@@ -114,7 +99,7 @@ jobs:
             bash -c "
               set -e
               export DEBIAN_FRONTEND=noninteractive
-              
+
               # Install build dependencies
               apt-get update
               apt-get install -y \
@@ -124,23 +109,20 @@ jobs:
                 golang-go \
                 git \
                 lsb-release
-              
+
               # Build binary package only (faster and what we need)
               dpkg-buildpackage -us -uc -b
             "
-
       - name: Collect packages
         run: |
           mkdir -p dist/debian-${{ matrix.debian_version }}
           find .. -maxdepth 1 -name "*.deb" -exec mv {} dist/debian-${{ matrix.debian_version }}/ \;
           ls -la dist/debian-${{ matrix.debian_version }}/
-
       - name: Upload Debian packages
         uses: actions/upload-artifact@v4
         with:
           name: debian-packages-${{ matrix.debian_version }}
           path: dist/debian-${{ matrix.debian_version }}/
-
   publish-packages:
     name: Publish Packages to Release
     needs: [release, build-debian-packages]
@@ -150,14 +132,12 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           path: artifacts/
-
       - name: Get release version
         id: release
         run: |
           VERSION=$(git describe --tags --abbrev=0 2>/dev/null || echo "dev")
           echo "version=${VERSION}" >> $GITHUB_OUTPUT
           echo "Release version: ${VERSION}"
-
       - name: Upload packages to release
         uses: softprops/action-gh-release@v2
         with:
