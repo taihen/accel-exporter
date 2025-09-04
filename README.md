@@ -25,6 +25,7 @@ Some small story behind this exporter on my [blog](https://taihen.org/posts/acce
 - Configurable metrics path (default: /metrics)
 - Configurable path to `accel-cmd` binary
 - Ready-to-use Grafana dashboard
+- Debian packages for Debian 11/12
 
 ## Installation
 
