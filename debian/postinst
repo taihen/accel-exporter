@@ -1,0 +1,32 @@
+#!/bin/sh
+
+set -e
+
+case "$1" in
+    configure)
+        # Create accel-exporter user if it doesn't exist
+        if ! getent passwd accel-exporter >/dev/null 2>&1; then
+            adduser --system --group --home /var/lib/accel-exporter \
+                --no-create-home --shell /bin/false \
+                --gecos "Accel-PPP Exporter" accel-exporter
+        fi
+
+        # Create data directory
+        mkdir -p /var/lib/accel-exporter
+        chown accel-exporter:accel-exporter /var/lib/accel-exporter
+
+        # Reload systemd and enable service
+        systemctl daemon-reload
+        systemctl enable accel-exporter.service
+        ;;
+    abort-upgrade|abort-remove|abort-deconfigure)
+        ;;
+    *)
+        echo "postinst called with unknown argument \`$1'" >&2
+        exit 1
+        ;;
+esac
+
+#DEBHELPER#
+
+exit 0

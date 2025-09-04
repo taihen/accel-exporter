@@ -70,3 +70,106 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         # Configuration is now handled by .releaserc.json
+
+  build-debian-packages:
+    name: Build Debian Packages
+    needs: release
+    runs-on: ubuntu-22.04
+    strategy:
+      matrix:
+        debian_version: ["11", "12"]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Get release version
+        id: version
+        run: |
+          VERSION=$(git describe --tags --abbrev=0 2>/dev/null || echo "dev")
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "Building Debian package for version: $VERSION"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Debian ${{ matrix.debian_version }} package
+        run: |
+          # Create build directory
+          mkdir -p build/debian-${{ matrix.debian_version }}
+          
+          # Generate changelog with actual version and date
+          sed -e "s/__VERSION__/${{ steps.version.outputs.version }}/g" \
+              -e "s/__DATE__/$(date -R)/" \
+              debian/changelog > build/debian-${{ matrix.debian_version }}/changelog
+          
+          # Copy debian files
+          cp -r debian/* build/debian-${{ matrix.debian_version }}/
+          cp build/debian-${{ matrix.debian_version }}/changelog debian/changelog
+          
+          # Build package using Docker
+          docker run --rm \
+            -v $(pwd):/workspace \
+            -w /workspace \
+            debian:${{ matrix.debian_version }} \
+            bash -c "
+              set -e
+              export DEBIAN_FRONTEND=noninteractive
+              
+              # Install build dependencies
+              apt-get update
+              apt-get install -y \
+                build-essential \
+                debhelper \
+                devscripts \
+                golang-go \
+                git \
+                dh-systemd \
+                lsb-release
+              
+              # Build source package
+              dpkg-buildpackage -us -uc -S
+              
+              # Build binary package
+              dpkg-buildpackage -us -uc -b
+            "
+
+      - name: Move packages
+        run: |
+          mkdir -p dist/debian-${{ matrix.debian_version }}
+          mv ../accel-exporter_*.deb dist/debian-${{ matrix.debian_version }}/ 2>/dev/null || true
+          mv ../accel-exporter_*.dsc dist/debian-${{ matrix.debian_version }}/ 2>/dev/null || true
+          mv ../accel-exporter_*.tar.* dist/debian-${{ matrix.debian_version }}/ 2>/dev/null || true
+          mv ../accel-exporter_*.changes dist/debian-${{ matrix.debian_version }}/ 2>/dev/null || true
+
+      - name: Upload Debian packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: debian-packages-${{ matrix.debian_version }}
+          path: dist/debian-${{ matrix.debian_version }}/
+
+  publish-packages:
+    name: Publish Packages to Release
+    needs: [release, build-debian-packages]
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts/
+
+      - name: Get release info
+        id: release
+        run: |
+          VERSION=$(find artifacts/ -name "*.deb" | head -1 | xargs dpkg-deb --field | grep Version | cut -d' ' -f2 | cut -d'-' -f1)
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+
+      - name: Upload packages to release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.release.outputs.version }}
+          files: |
+            artifacts/debian-packages-11/*.deb
+            artifacts/debian-packages-12/*.deb
+          fail_on_unmatched_files: false

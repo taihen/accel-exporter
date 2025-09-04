@@ -1,0 +1,29 @@
+[Unit]
+Description=Accel-PPP Prometheus Exporter
+Documentation=https://github.com/taihen/accel-exporter
+After=network.target accel-ppp.service
+Wants=network.target
+
+[Service]
+Type=simple
+User=accel-exporter
+Group=accel-exporter
+ExecStart=/usr/bin/accel-exporter
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=accel-exporter
+
+# Security settings
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/var/lib/accel-exporter
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+
+[Install]
+WantedBy=multi-user.target

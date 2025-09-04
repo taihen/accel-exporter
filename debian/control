@@ -1,0 +1,25 @@
+Source: accel-exporter
+Section: net
+Priority: optional
+Maintainer: Taihen <taihen@taihen.org>
+Build-Depends: debhelper-compat (= 13), golang-go (>= 2:1.20~)
+Standards-Version: 4.6.2
+Homepage: https://github.com/taihen/accel-exporter
+Vcs-Browser: https://github.com/taihen/accel-exporter
+Vcs-Git: https://github.com/taihen/accel-exporter.git
+
+Package: accel-exporter
+Architecture: any
+Depends: ${misc:Depends}
+Recommends: accel-ppp
+Description: Prometheus exporter for Accel-PPP
+ A Prometheus exporter for Accel-PPP that exposes metrics from the
+ 'accel-cmd show stat' command. The exporter collects various metrics
+ including general system metrics, core metrics, session metrics,
+ PPPoE metrics, and RADIUS metrics with server labels.
+ .
+ Features:
+  * Exposes all metrics from accel-cmd show stat
+  * Configurable listen address and metrics path
+  * Ready-to-use Grafana dashboard
+  * Docker support

@@ -32,6 +32,31 @@ Some small story behind this exporter on my [blog](https://taihen.org/posts/acce
 
 Download the latest release from the [Releases page](https://github.com/taihen/accel-exporter/releases).
 
+### Debian/Ubuntu Package
+
+For Debian 11 (Bullseye) and Debian 12 (Bookworm), download the appropriate `.deb` package from the [Releases page](https://github.com/taihen/accel-exporter/releases):
+
+```bash
+# Download the package (replace VERSION and DEBIAN_VERSION accordingly)
+wget https://github.com/taihen/accel-exporter/releases/download/v1.0.0/accel-exporter_1.0.0-1_amd64.deb
+
+# Install the package
+sudo dpkg -i accel-exporter_1.0.0-1_amd64.deb
+
+# Start and enable the service
+sudo systemctl start accel-exporter
+sudo systemctl enable accel-exporter
+
+# Check service status
+sudo systemctl status accel-exporter
+```
+
+The Debian package includes:
+- Systemd service with security hardening
+- Dedicated `accel-exporter` user account
+- Automatic service management
+- Configuration in `/etc/default/accel-exporter` (if needed)
+
 ### Docker
 
 ```bash

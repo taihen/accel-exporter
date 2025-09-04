@@ -1,0 +1,36 @@
+#!/usr/bin/make -f
+
+export DH_VERBOSE = 1
+export GOCACHE = /tmp/go-build
+export GOPATH = $(CURDIR)/_build
+export PATH := /usr/lib/go-1.21/bin:$(PATH)
+
+%:
+	dh $@
+
+override_dh_auto_build:
+	# Build the binary with version info
+	cd $(CURDIR) && \
+	CGO_ENABLED=0 go build \
+		-ldflags "-X main.version=$(shell dpkg-parsechangelog -S Version | cut -d- -f1) \
+		          -X main.commit=$(shell git rev-parse --short HEAD || echo 'unknown') \
+		          -X main.date=$(shell date -u +%Y-%m-%dT%H:%M:%SZ)" \
+		-o accel-exporter ./cmd/accel-exporter
+
+override_dh_auto_test:
+	cd $(CURDIR) && go test -v ./...
+
+override_dh_auto_install:
+	# Install binary
+	mkdir -p debian/accel-exporter/usr/bin
+	install -m 755 accel-exporter debian/accel-exporter/usr/bin/
+	
+	# Install systemd service file
+	mkdir -p debian/accel-exporter/lib/systemd/system
+	install -m 644 debian/accel-exporter.service debian/accel-exporter/lib/systemd/system/
+
+override_dh_auto_clean:
+	rm -f accel-exporter
+	rm -rf _build
+
+.PHONY: override_dh_auto_build override_dh_auto_test override_dh_auto_install override_dh_auto_clean

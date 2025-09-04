@@ -1,0 +1,5 @@
+accel-exporter (__VERSION__-1) unstable; urgency=medium
+
+  * Automated release from tag __VERSION__
+
+ -- GitHub Actions <noreply@github.com>  __DATE__
