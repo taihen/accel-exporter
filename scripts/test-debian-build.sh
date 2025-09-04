@@ -10,7 +10,6 @@ files=(
     "debian/control"
     "debian/rules" 
     "debian/changelog"
-    "debian/compat"
     "debian/postinst"
     "debian/prerm"
     "debian/accel-exporter.service"

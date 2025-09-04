@@ -1,25 +1,20 @@
 #!/usr/bin/make -f
 
 export DH_VERBOSE = 1
-export GOCACHE = /tmp/go-build
-export GOPATH = $(CURDIR)/_build
-# Use system's default Go installation
-export PATH := $(PATH)
 
 %:
 	dh $@
 
 override_dh_auto_build:
-	# Build the binary with version info
-	cd $(CURDIR) && \
-	CGO_ENABLED=0 go build \
-		-ldflags "-X main.version=$(shell dpkg-parsechangelog -S Version | cut -d- -f1) \
-		          -X main.commit=$(shell git rev-parse --short HEAD || echo 'unknown') \
-		          -X main.date=$(shell date -u +%Y-%m-%dT%H:%M:%SZ)" \
-		-o accel-exporter ./cmd/accel-exporter
+	# Use pre-built binary from dist/ directory
+	test -f dist/accel-exporter || (echo "Pre-built binary not found in dist/accel-exporter" && exit 1)
+	cp dist/accel-exporter accel-exporter
 
 override_dh_auto_test:
-	cd $(CURDIR) && go test -v ./...
+	# Skip tests for pre-built binary packaging
+
+override_dh_dwz:
+	# Skip dwz compression for Go binaries (causes issues with static binaries)
 
 override_dh_auto_install:
 	# Install binary
