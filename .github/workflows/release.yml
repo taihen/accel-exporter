@@ -72,15 +72,36 @@ jobs:
 
                 # Install minimal build dependencies
                 apt-get update
-                apt-get install -y build-essential debhelper devscripts
+                apt-get install -y debhelper dpkg-dev
+
+                # Debug: Show current directory and contents
+                echo 'Current directory:' \$(pwd)
+                echo 'Contents before build:'
+                ls -la
+                echo 'Parent directory contents:'
+                ls -la ..
 
                 # Build binary package
+                echo 'Running dpkg-buildpackage...'
                 dpkg-buildpackage -us -uc -b
+                
+                # Debug: Show what was created
+                echo 'Contents after build:'
+                ls -la
+                echo 'Parent directory contents after build:'
+                ls -la ..
+                echo 'Looking for .deb files:'
+                find .. -name '*.deb' -ls
               "
             
-            # Collect the package
+            # Collect the package from parent directory
             mkdir -p dist/debian-$debian_version
-            find .. -maxdepth 1 -name "*.deb" -exec mv {} dist/debian-$debian_version/ \;
+            # Look for .deb files in the GitHub Actions runner's workspace parent
+            find . -maxdepth 2 -name "*.deb" -exec mv {} dist/debian-$debian_version/ \; || echo "No .deb files found"
+            # Also check if files were created in parent directory by Docker
+            if [ -f ../accel-exporter_*.deb ]; then
+              mv ../accel-exporter_*.deb dist/debian-$debian_version/ || echo "Failed to move .deb from parent"
+            fi
             echo "Debian $debian_version packages:"
             ls -la dist/debian-$debian_version/
           done
