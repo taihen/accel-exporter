@@ -100,9 +100,6 @@ jobs:
               set -e
               export DEBIAN_FRONTEND=noninteractive
 
-              # Fix git safe directory issue
-              git config --global --add safe.directory /workspace
-
               # Install build dependencies
               apt-get update
               apt-get install -y \
@@ -112,6 +109,9 @@ jobs:
                 golang-go \
                 git \
                 lsb-release
+
+              # Fix git safe directory issue (after git is installed)
+              git config --global --add safe.directory /workspace
 
               # Build binary package only (faster and what we need)
               dpkg-buildpackage -us -uc -b
