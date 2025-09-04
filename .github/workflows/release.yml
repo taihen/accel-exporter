@@ -10,17 +10,6 @@ jobs:
     name: Create Release
     runs-on: ubuntu-22.04
     steps:
-      #- name: Download and build glibc 2.31  # Build glibc 2.31 for older distros which are still on servers
-      #  run: |
-      #    wget -q http://ftp.gnu.org/gnu/libc/glibc-2.31.tar.gz
-      #    tar -xzf glibc-2.31.tar.gz
-      #    mkdir glibc-2.31/build && cd glibc-2.31/build
-      #    ../configure --prefix=$HOME/glibc-2.31
-      #    make -j$(nproc) && make install
-
-      #- name: Build with custom glibc
-      #  run: |
-      #    gcc -o myapp src/main.c -Wl,--rpath=$HOME/glibc-2.31/lib
       - name: Checkout code
         uses: actions/checkout@v5
         with:
@@ -54,103 +43,49 @@ jobs:
         run: |
           cd dist
           sha256sum * > checksums.txt
-          cd ..  # Go back to the root directory
+          cd ..
+      - name: Build Debian packages
+        run: |
+          # Use the Linux AMD64 binary we just built for Debian packages
+          cp dist/accel-exporter-linux-amd64 dist/accel-exporter
+          
+          # Get version for debian changelog (will be set by semantic-release)
+          VERSION=$(git describe --tags --abbrev=0 2>/dev/null | sed 's/^v//' || echo "dev")
+          echo "Building Debian packages for version: $VERSION"
+          
+          # Generate changelog with version and date
+          sed -e "s/__VERSION__/${VERSION}/g" \
+              -e "s/__DATE__/$(date -R)/" \
+              debian/changelog > debian/changelog.tmp
+          mv debian/changelog.tmp debian/changelog
+          
+          # Build packages for both Debian 11 and 12
+          for debian_version in 11 12; do
+            echo "Building Debian $debian_version package..."
+            docker run --rm \
+              -v $(pwd):/workspace \
+              -w /workspace \
+              debian:$debian_version \
+              bash -c "
+                set -e
+                export DEBIAN_FRONTEND=noninteractive
+
+                # Install minimal build dependencies
+                apt-get update
+                apt-get install -y build-essential debhelper devscripts
+
+                # Build binary package
+                dpkg-buildpackage -us -uc -b
+              "
+            
+            # Collect the package
+            mkdir -p dist/debian-$debian_version
+            find .. -maxdepth 1 -name "*.deb" -exec mv {} dist/debian-$debian_version/ \;
+            echo "Debian $debian_version packages:"
+            ls -la dist/debian-$debian_version/
+          done
       - name: Semantic Release
         uses: cycjimmy/semantic-release-action@v5
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # Configuration is now handled by .releaserc.json
-  build-debian-packages:
-    name: Build Debian Packages
-    needs: release
-    runs-on: ubuntu-22.04
-    strategy:
-      matrix:
-        debian_version: ['11', '12']
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v5
-        with:
-          fetch-depth: 0
-      - name: Get release version
-        id: version
-        run: |
-          VERSION=$(git describe --tags --abbrev=0 2>/dev/null || echo "dev")
-          # Strip 'v' prefix for Debian version compatibility
-          VERSION=${VERSION#v}
-          echo "version=${VERSION}" >> $GITHUB_OUTPUT
-          echo "Building Debian package for version: $VERSION"
-      - name: Download pre-built binary
-        run: |
-          # Download the Linux AMD64 binary from the release
-          VERSION_TAG="v${{ steps.version.outputs.version }}"
-          BINARY_URL="https://github.com/${{ github.repository }}/releases/download/${VERSION_TAG}/accel-exporter-linux-amd64"
-          echo "Downloading binary from: $BINARY_URL"
-          mkdir -p dist
-          curl -L -o dist/accel-exporter "$BINARY_URL"
-          chmod +x dist/accel-exporter
-          echo "Downloaded binary version:"
-          ./dist/accel-exporter --version || echo "Binary downloaded successfully"
-      - name: Generate changelog
-        run: |
-          # Generate changelog with actual version and date
-          sed -e "s/__VERSION__/${{ steps.version.outputs.version }}/g" \
-              -e "s/__DATE__/$(date -R)/" \
-              debian/changelog > debian/changelog.tmp
-          mv debian/changelog.tmp debian/changelog
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-      - name: Build Debian ${{ matrix.debian_version }} package
-        run: |
-          # Build package using Docker
-          docker run --rm \
-            -v $(pwd):/workspace \
-            -w /workspace \
-            debian:${{ matrix.debian_version }} \
-            bash -c "
-              set -e
-              export DEBIAN_FRONTEND=noninteractive
-
-              # Install minimal build dependencies (no golang needed for pre-built binary)
-              apt-get update
-              apt-get install -y \
-                build-essential \
-                debhelper \
-                devscripts
-
-              # Build binary package only (faster and what we need)
-              dpkg-buildpackage -us -uc -b
-            "
-      - name: Collect packages
-        run: |
-          mkdir -p dist/debian-${{ matrix.debian_version }}
-          find .. -maxdepth 1 -name "*.deb" -exec mv {} dist/debian-${{ matrix.debian_version }}/ \;
-          ls -la dist/debian-${{ matrix.debian_version }}/
-      - name: Upload Debian packages
-        uses: actions/upload-artifact@v4
-        with:
-          name: debian-packages-${{ matrix.debian_version }}
-          path: dist/debian-${{ matrix.debian_version }}/
-  publish-packages:
-    name: Publish Packages to Release
-    needs: [release, build-debian-packages]
-    runs-on: ubuntu-22.04
-    steps:
-      - name: Download all artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: artifacts/
-      - name: Get release version
-        id: release
-        run: |
-          VERSION=$(git describe --tags --abbrev=0 2>/dev/null || echo "dev")
-          echo "version=${VERSION}" >> $GITHUB_OUTPUT
-          echo "Release version: ${VERSION}"
-      - name: Upload packages to release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ steps.release.outputs.version }}
-          files: |
-            artifacts/debian-packages-11/*.deb
-            artifacts/debian-packages-12/*.deb
-          fail_on_unmatched_files: false

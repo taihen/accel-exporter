@@ -9,7 +9,9 @@
         {"path": "dist/accel-exporter-linux-arm64"},
         {"path": "dist/accel-exporter-darwin-amd64"},
         {"path": "dist/accel-exporter-darwin-arm64"},
-        {"path": "dist/checksums.txt"}
+        {"path": "dist/checksums.txt"},
+        {"path": "dist/debian-11/*.deb", "name": "accel-exporter_*_amd64_debian11.deb"},
+        {"path": "dist/debian-12/*.deb", "name": "accel-exporter_*_amd64_debian12.deb"}
       ]
     }],
     ["@semantic-release/git", {
