@@ -106,7 +106,7 @@ jobs:
             ls -la dist/debian-$debian_version/
           done
       - name: Semantic Release
-        uses: cycjimmy/semantic-release-action@v5
+        uses: cycjimmy/semantic-release-action@v6
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # Configuration is now handled by .releaserc.json
