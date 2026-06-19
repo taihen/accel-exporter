@@ -23,7 +23,7 @@ jobs:
       # v8 action targets golangci-lint v2 (v6 installs v1, which rejects the v2
       # config). Default binary install mode fetches a prebuilt static binary,
       # so the linter version is decoupled from the repo's Go toolchain (latest
-      # golangci-lint needs Go >= 1.25; go.mod here targets 1.24).
+      # golangci-lint needs Go >= 1.25; go.mod here targets 1.26.4).
       - uses: golangci/golangci-lint-action@v8
         with:
           version: latest
