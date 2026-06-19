@@ -102,6 +102,11 @@ func CollectStats(accelCmdPath string, timeout time.Duration) (*Stats, error) {
 	}
 
 	cmd := exec.CommandContext(ctx, accelCmdPath, "show", "stat")
+	// WaitDelay bounds how long Run blocks after the context is cancelled and the
+	// process killed. Without it, a child that forks (e.g. a shell wrapper that
+	// spawns a long-running grandchild) can inherit the stdout pipe and keep it
+	// open, leaving Run stuck reading until that grandchild exits.
+	cmd.WaitDelay = 2 * time.Second
 	var out bytes.Buffer
 	cmd.Stdout = &out
 	if err := cmd.Run(); err != nil {

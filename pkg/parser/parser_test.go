@@ -39,12 +39,16 @@ func TestCollectStatsSuccess(t *testing.T) {
 // TestCollectStatsTimeout proves a hung accel-cmd is killed at the deadline
 // instead of wedging the scrape forever.
 func TestCollectStatsTimeout(t *testing.T) {
-	path := fakeAccelCmd(t, "sleep 5")
+	// Background the sleep so it inherits stdout and outlives the killed shell,
+	// deterministically reproducing the pipe-drain hang on every platform.
+	path := fakeAccelCmd(t, "sleep 10 & wait")
 	start := time.Now()
 	if _, err := CollectStats(path, 50*time.Millisecond); err == nil {
 		t.Fatal("CollectStats: want timeout error, got nil")
 	}
-	if elapsed := time.Since(start); elapsed > 2*time.Second {
+	// Deadline is 50ms; WaitDelay caps post-kill pipe drain at 2s. A grandchild
+	// holding the pipe must not block Run for the full sleep.
+	if elapsed := time.Since(start); elapsed > 4*time.Second {
 		t.Errorf("CollectStats blocked %v, timeout not enforced", elapsed)
 	}
 }
