@@ -1,3 +1,5 @@
+// Package parser executes accel-cmd and parses its `show stat` output into
+// typed statistics.
 package parser
 
 import (

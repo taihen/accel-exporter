@@ -1,3 +1,5 @@
+// Command accel-exporter is a Prometheus exporter for Accel-PPP, exposing the
+// metrics reported by `accel-cmd show stat`.
 package main
 
 import (
@@ -13,9 +15,9 @@ import (
 
 // Version information set by build flags
 var (
-	version = "dev"      // Semantic version from git tag
-	commit  = "unknown"  // Git commit hash
-	date    = "unknown"  // Build timestamp
+	version = "dev"     // Semantic version from git tag
+	commit  = "unknown" // Git commit hash
+	date    = "unknown" // Build timestamp
 )
 
 // versionInfo returns a formatted string with build information
@@ -46,16 +48,16 @@ func main() {
 
 	// Set up HTTP server
 	http.Handle(cfg.MetricsPath, promhttp.Handler())
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("/", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		w.Write([]byte(fmt.Sprintf(`<html>
+		_, _ = fmt.Fprintf(w, `<html>
 			<head><title>Accel-PPP Exporter</title></head>
 			<body>
 				<h1>Accel-PPP Exporter</h1>
 				<p><a href="%s">Metrics</a></p>
 				<p><small>%s</small></p>
 			</body>
-		</html>`, cfg.MetricsPath, versionInfo())))
+		</html>`, cfg.MetricsPath, versionInfo())
 	})
 
 	log.Fatal(http.ListenAndServe(cfg.ListenAddress, nil))

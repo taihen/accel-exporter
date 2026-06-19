@@ -1,3 +1,5 @@
+// Package collector implements the prometheus.Collector that scrapes accel-ppp
+// statistics and exposes them as Prometheus metrics.
 package collector
 
 import (

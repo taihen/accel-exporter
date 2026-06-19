@@ -1,0 +1,10 @@
+version: "2"
+# errcheck, govet, ineffassign, staticcheck, unused are enabled by default in v2.
+linters:
+  enable:
+    - revive
+    - misspell
+    - unconvert
+formatters:
+  enable:
+    - gofmt
