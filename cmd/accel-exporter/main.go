@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -32,7 +33,7 @@ func main() {
 	log.Printf("Listening on %s, metrics path: %s", cfg.ListenAddress, cfg.MetricsPath)
 
 	// Create and register collector
-	accelCollector := collector.NewAccelCollector(cfg.AccelCmdPath)
+	accelCollector := collector.NewAccelCollector(cfg.AccelCmdPath, cfg.ScrapeTimeout)
 	prometheus.MustRegister(accelCollector)
 
 	// Add version information
@@ -46,9 +47,13 @@ func main() {
 	buildInfo.WithLabelValues(version, commit, date).Set(1)
 	prometheus.MustRegister(buildInfo)
 
-	// Set up HTTP server
-	http.Handle(cfg.MetricsPath, promhttp.Handler())
-	http.HandleFunc("/", func(w http.ResponseWriter, _ *http.Request) {
+	// Set up HTTP server with an explicit mux and timeouts. ReadHeaderTimeout
+	// guards against Slowloris-style header dribbling; WriteTimeout is kept
+	// comfortably above the scrape timeout so a legitimately slow scrape is
+	// never truncated.
+	mux := http.NewServeMux()
+	mux.Handle(cfg.MetricsPath, promhttp.Handler())
+	mux.HandleFunc("/", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		_, _ = fmt.Fprintf(w, `<html>
 			<head><title>Accel-PPP Exporter</title></head>
@@ -60,5 +65,21 @@ func main() {
 		</html>`, cfg.MetricsPath, versionInfo())
 	})
 
-	log.Fatal(http.ListenAndServe(cfg.ListenAddress, nil))
+	// Mirror the collector's clamp so a non-positive -accel-cmd.timeout cannot
+	// produce a too-short WriteTimeout that would truncate a legitimate scrape.
+	scrapeTimeout := cfg.ScrapeTimeout
+	if scrapeTimeout <= 0 {
+		scrapeTimeout = collector.DefaultScrapeTimeout
+	}
+
+	srv := &http.Server{
+		Addr:              cfg.ListenAddress,
+		Handler:           mux,
+		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       10 * time.Second,
+		WriteTimeout:      scrapeTimeout + 10*time.Second,
+		IdleTimeout:       2 * time.Minute,
+	}
+
+	log.Fatal(srv.ListenAndServe())
 }
