@@ -1,0 +1,10 @@
+# Used by GoReleaser: packages the pre-built binary, no in-image compilation.
+# For a from-source build see the top-level Dockerfile.
+FROM alpine:latest
+RUN apk --no-cache add ca-certificates \
+    && addgroup -S appgroup && adduser -S appuser -G appgroup
+WORKDIR /home/appuser
+COPY accel-exporter /usr/bin/accel-exporter
+USER appuser
+EXPOSE 9101
+ENTRYPOINT ["/usr/bin/accel-exporter"]

@@ -25,7 +25,7 @@ Some small story behind this exporter on my [blog](https://taihen.org/posts/acce
 - Configurable metrics path (default: /metrics)
 - Configurable path to `accel-cmd` binary
 - Ready-to-use Grafana dashboard
-- Debian packages for Debian 11/12
+- Debian (`.deb`) packages for `amd64` and `arm64`
 
 ## Installation
 
@@ -35,14 +35,14 @@ Download the latest release from the [Releases page](https://github.com/taihen/a
 
 ### Debian/Ubuntu Package
 
-For Debian 11 (Bullseye) and Debian 12 (Bookworm), download the appropriate `.deb` package from the [Releases page](https://github.com/taihen/accel-exporter/releases):
+Download the `.deb` for your architecture from the [Releases page](https://github.com/taihen/accel-exporter/releases). A single package works on Debian 11/12, Ubuntu, and derivatives:
 
 ```bash
-# Download the package (replace VERSION and DEBIAN_VERSION accordingly)
-wget https://github.com/taihen/accel-exporter/releases/download/v1.0.0/accel-exporter_1.0.0-1_amd64.deb
+# Download the package (replace VERSION and ARCH; ARCH is amd64 or arm64)
+wget https://github.com/taihen/accel-exporter/releases/download/v1.0.0/accel-exporter_1.0.0_linux_amd64.deb
 
 # Install the package
-sudo dpkg -i accel-exporter_1.0.0-1_amd64.deb
+sudo dpkg -i accel-exporter_1.0.0_linux_amd64.deb
 
 # Start and enable the service
 sudo systemctl start accel-exporter
@@ -53,15 +53,16 @@ sudo systemctl status accel-exporter
 ```
 
 The Debian package includes:
-- Systemd service with security hardening
+- Systemd service with security hardening (`/lib/systemd/system/accel-exporter.service`)
 - Dedicated `accel-exporter` user account
-- Automatic service management
-- Configuration in `/etc/default/accel-exporter` (if needed)
+- Automatic service enablement on install, stop/disable on removal
 
 ### Docker
 
+Multi-arch images (`amd64`, `arm64`) are published per release to GitHub Container Registry:
+
 ```bash
-docker run -d --name accel-exporter -p 9101:9101 taihen/accel-exporter:latest
+docker run -d --name accel-exporter -p 9101:9101 ghcr.io/taihen/accel-exporter:latest
 ```
 
 ### From Source
@@ -198,6 +199,17 @@ The exporter exposes the following metrics:
 - `accel_radius_interim_lost_1m`: Interim packets lost (1m window)
 - `accel_radius_interim_avg_time_5m_seconds`: Avg interim response (5m)
 - `accel_radius_interim_avg_time_1m_seconds`: Avg interim response (1m)
+
+## Releasing
+
+Releases are built by [GoReleaser](https://goreleaser.com) and triggered by pushing a semver tag:
+
+```bash
+git tag v1.2.3
+git push origin v1.2.3
+```
+
+The `release` workflow then builds the binaries, `.deb` packages, and multi-arch Docker images and publishes them to GitHub Releases and GitHub Container Registry (`ghcr.io`). Image publishing uses the built-in `GITHUB_TOKEN` — no extra secrets required.
 
 ## License
 
