@@ -198,10 +198,16 @@ func atof(value string) float64 {
 
 // fields splits a "/"-delimited value (e.g. "10 / 1 / 0") into want floats.
 // It returns ok=false when the field count differs, so callers leave the
-// destination untouched rather than recording partial data.
+// destination untouched rather than recording partial data. An empty value is
+// a silent miss (accel-cmd may omit a field); a non-empty value with the wrong
+// count is logged so malformed output is visible to operators.
 func fields(value string, want int) ([]float64, bool) {
+	if strings.TrimSpace(value) == "" {
+		return nil, false
+	}
 	parts := strings.Split(value, "/")
 	if len(parts) != want {
+		log.Printf("parser: expected %d fields in %q, got %d", want, value, len(parts))
 		return nil, false
 	}
 	out := make([]float64, want)

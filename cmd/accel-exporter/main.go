@@ -65,12 +65,19 @@ func main() {
 		</html>`, cfg.MetricsPath, versionInfo())
 	})
 
+	// Mirror the collector's clamp so a non-positive -accel-cmd.timeout cannot
+	// produce a too-short WriteTimeout that would truncate a legitimate scrape.
+	scrapeTimeout := cfg.ScrapeTimeout
+	if scrapeTimeout <= 0 {
+		scrapeTimeout = collector.DefaultScrapeTimeout
+	}
+
 	srv := &http.Server{
 		Addr:              cfg.ListenAddress,
 		Handler:           mux,
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       10 * time.Second,
-		WriteTimeout:      cfg.ScrapeTimeout + 10*time.Second,
+		WriteTimeout:      scrapeTimeout + 10*time.Second,
 		IdleTimeout:       2 * time.Minute,
 	}
 
