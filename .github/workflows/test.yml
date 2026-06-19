@@ -21,9 +21,9 @@ jobs:
           GOOS=linux GOARCH=arm64 go build ./...
           GOOS=darwin GOARCH=arm64 go build ./...
       # v8 action targets golangci-lint v2 (v6 installs v1, which rejects the v2
-      # config). goinstall builds it with the Go toolchain above so its build
-      # language version matches the go.mod target.
+      # config). Default binary install mode fetches a prebuilt static binary,
+      # so the linter version is decoupled from the repo's Go toolchain (latest
+      # golangci-lint needs Go >= 1.25; go.mod here targets 1.24).
       - uses: golangci/golangci-lint-action@v8
         with:
           version: latest
-          install-mode: goinstall
