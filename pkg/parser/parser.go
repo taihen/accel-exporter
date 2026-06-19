@@ -5,10 +5,13 @@ package parser
 import (
 	"bufio"
 	"bytes"
+	"context"
+	"log"
 	"os/exec"
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // Stats represents all statistics gathered from accel-cmd
@@ -87,13 +90,21 @@ type RadiusStats struct {
 	InterimAvgTime1m float64
 }
 
-// CollectStats executes accel-cmd and parses its output
-func CollectStats(accelCmdPath string) (*Stats, error) {
-	cmd := exec.Command(accelCmdPath, "show", "stat")
+// CollectStats executes accel-cmd and parses its output. The command is bounded
+// by timeout so a hung accel-cmd cannot wedge the scrape or leak processes; a
+// non-positive timeout disables the deadline.
+func CollectStats(accelCmdPath string, timeout time.Duration) (*Stats, error) {
+	ctx := context.Background()
+	if timeout > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, timeout)
+		defer cancel()
+	}
+
+	cmd := exec.CommandContext(ctx, accelCmdPath, "show", "stat")
 	var out bytes.Buffer
 	cmd.Stdout = &out
-	err := cmd.Run()
-	if err != nil {
+	if err := cmd.Run(); err != nil {
 		return nil, err
 	}
 
@@ -163,6 +174,38 @@ func parseStats(output string) (*Stats, error) {
 	return stats, scanner.Err()
 }
 
+// atof parses a numeric field. An empty value yields 0 silently (accel-cmd
+// legitimately omits fields); a non-empty value that fails to parse yields 0
+// but is logged, so malformed output is visible to operators instead of
+// masquerading as a real zero.
+func atof(value string) float64 {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return 0
+	}
+	f, err := strconv.ParseFloat(value, 64)
+	if err != nil {
+		log.Printf("parser: cannot parse %q as number: %v", value, err)
+		return 0
+	}
+	return f
+}
+
+// fields splits a "/"-delimited value (e.g. "10 / 1 / 0") into want floats.
+// It returns ok=false when the field count differs, so callers leave the
+// destination untouched rather than recording partial data.
+func fields(value string, want int) ([]float64, bool) {
+	parts := strings.Split(value, "/")
+	if len(parts) != want {
+		return nil, false
+	}
+	out := make([]float64, want)
+	for i, p := range parts {
+		out[i] = atof(p)
+	}
+	return out, true
+}
+
 // Helper functions to parse each section...
 func parseMainSection(stats *Stats, key, value string) {
 	switch key {
@@ -192,82 +235,60 @@ func parseUptime(value string) float64 {
 		return 0
 	}
 
-	hours, _ := strconv.ParseFloat(timeParts[0], 64)
-	minutes, _ := strconv.ParseFloat(timeParts[1], 64)
-	seconds, _ := strconv.ParseFloat(timeParts[2], 64)
+	hours := atof(timeParts[0])
+	minutes := atof(timeParts[1])
+	seconds := atof(timeParts[2])
 
 	return days*86400 + hours*3600 + minutes*60 + seconds
 }
 
 func parsePercentage(value string) float64 {
 	// Example: "1.23%"
-	trimmed := strings.TrimSuffix(value, "%")
-	f, _ := strconv.ParseFloat(trimmed, 64)
-	return f
+	return atof(strings.TrimSuffix(value, "%"))
 }
 
 func parseMemory(stats *Stats, value string) {
 	// Example: "12345 / 67890 K"
-	parts := strings.Split(strings.TrimSuffix(value, " K"), "/")
-	if len(parts) == 2 {
-		rss, _ := strconv.ParseFloat(strings.TrimSpace(parts[0]), 64)
-		virt, _ := strconv.ParseFloat(strings.TrimSpace(parts[1]), 64)
-		stats.MemRSS = rss
-		stats.MemVirt = virt
+	if v, ok := fields(strings.TrimSuffix(value, " K"), 2); ok {
+		stats.MemRSS = v[0]
+		stats.MemVirt = v[1]
 	}
 }
 
 func parseCoreSection(core *CoreStats, key, value string) {
-	// Implement parsing logic based on key
 	switch key {
 	case "mempool(allocated/available)":
 		// Example: "1024 / 2048"
-		parts := strings.Split(value, "/")
-		if len(parts) == 2 {
-			alloc, _ := strconv.ParseFloat(strings.TrimSpace(parts[0]), 64)
-			avail, _ := strconv.ParseFloat(strings.TrimSpace(parts[1]), 64)
-			core.MempoolAllocated = alloc
-			core.MempoolAvailable = avail
+		if v, ok := fields(value, 2); ok {
+			core.MempoolAllocated = v[0]
+			core.MempoolAvailable = v[1]
 		}
 	case "threads(count/active)":
-		parts := strings.Split(value, "/")
-		if len(parts) == 2 {
-			count, _ := strconv.ParseFloat(strings.TrimSpace(parts[0]), 64)
-			active, _ := strconv.ParseFloat(strings.TrimSpace(parts[1]), 64)
-			core.ThreadCount = count
-			core.ThreadActive = active
+		if v, ok := fields(value, 2); ok {
+			core.ThreadCount = v[0]
+			core.ThreadActive = v[1]
 		}
 	case "context(count/sleep/pending)":
-		parts := strings.Split(value, "/")
-		if len(parts) == 3 {
-			count, _ := strconv.ParseFloat(strings.TrimSpace(parts[0]), 64)
-			sleep, _ := strconv.ParseFloat(strings.TrimSpace(parts[1]), 64)
-			pending, _ := strconv.ParseFloat(strings.TrimSpace(parts[2]), 64)
-			core.ContextCount = count
-			core.ContextSleeping = sleep
-			core.ContextPending = pending
+		if v, ok := fields(value, 3); ok {
+			core.ContextCount = v[0]
+			core.ContextSleeping = v[1]
+			core.ContextPending = v[2]
 		}
 	case "md_handler(count/pending)":
-		parts := strings.Split(value, "/")
-		if len(parts) == 2 {
-			count, _ := strconv.ParseFloat(strings.TrimSpace(parts[0]), 64)
-			pending, _ := strconv.ParseFloat(strings.TrimSpace(parts[1]), 64)
-			core.MDHandlerCount = count
-			core.MDHandlerPending = pending
+		if v, ok := fields(value, 2); ok {
+			core.MDHandlerCount = v[0]
+			core.MDHandlerPending = v[1]
 		}
 	case "timer(count/pending)":
-		parts := strings.Split(value, "/")
-		if len(parts) == 2 {
-			count, _ := strconv.ParseFloat(strings.TrimSpace(parts[0]), 64)
-			pending, _ := strconv.ParseFloat(strings.TrimSpace(parts[1]), 64)
-			core.TimerCount = count
-			core.TimerPending = pending
+		if v, ok := fields(value, 2); ok {
+			core.TimerCount = v[0]
+			core.TimerPending = v[1]
 		}
 	}
 }
 
 func parseSessionsSection(sessions *SessionStats, key, value string) {
-	f, _ := strconv.ParseFloat(value, 64)
+	f := atof(value)
 	switch key {
 	case "starting":
 		sessions.Starting = f
@@ -279,7 +300,7 @@ func parseSessionsSection(sessions *SessionStats, key, value string) {
 }
 
 func parsePPPoESection(pppoe *PPPoEStats, key, value string) {
-	f, _ := strconv.ParseFloat(value, 64)
+	f := atof(value)
 	switch key {
 	case "starting":
 		pppoe.Starting = f
@@ -305,75 +326,53 @@ func parsePPPoESection(pppoe *PPPoEStats, key, value string) {
 }
 
 func parseRadiusSection(radius *RadiusStats, key, value string) {
-	f, _ := strconv.ParseFloat(value, 64)
 	switch key {
 	case "state":
 		radius.State = value // State is a string
 	case "fail count":
-		radius.FailCount = f
+		radius.FailCount = atof(value)
 	case "request count":
-		radius.RequestCount = f
+		radius.RequestCount = atof(value)
 	case "queue length":
-		radius.QueueLength = f
+		radius.QueueLength = atof(value)
 	case "auth sent":
-		radius.AuthSent = f
+		radius.AuthSent = atof(value)
 	case "auth lost(total/5m/1m)":
-		parts := strings.Split(value, "/")
-		if len(parts) == 3 {
-			total, _ := strconv.ParseFloat(strings.TrimSpace(parts[0]), 64)
-			m5, _ := strconv.ParseFloat(strings.TrimSpace(parts[1]), 64)
-			m1, _ := strconv.ParseFloat(strings.TrimSpace(parts[2]), 64)
-			radius.AuthLostTotal = total
-			radius.AuthLost5m = m5
-			radius.AuthLost1m = m1
+		if v, ok := fields(value, 3); ok {
+			radius.AuthLostTotal = v[0]
+			radius.AuthLost5m = v[1]
+			radius.AuthLost1m = v[2]
 		}
 	case "auth avg time(5m/1m)":
-		parts := strings.Split(value, "/")
-		if len(parts) == 2 {
-			m5, _ := strconv.ParseFloat(strings.TrimSpace(parts[0]), 64)
-			m1, _ := strconv.ParseFloat(strings.TrimSpace(parts[1]), 64)
-			radius.AuthAvgTime5m = m5
-			radius.AuthAvgTime1m = m1
+		if v, ok := fields(value, 2); ok {
+			radius.AuthAvgTime5m = v[0]
+			radius.AuthAvgTime1m = v[1]
 		}
 	case "acct sent":
-		radius.AcctSent = f
+		radius.AcctSent = atof(value)
 	case "acct lost(total/5m/1m)":
-		parts := strings.Split(value, "/")
-		if len(parts) == 3 {
-			total, _ := strconv.ParseFloat(strings.TrimSpace(parts[0]), 64)
-			m5, _ := strconv.ParseFloat(strings.TrimSpace(parts[1]), 64)
-			m1, _ := strconv.ParseFloat(strings.TrimSpace(parts[2]), 64)
-			radius.AcctLostTotal = total
-			radius.AcctLost5m = m5
-			radius.AcctLost1m = m1
+		if v, ok := fields(value, 3); ok {
+			radius.AcctLostTotal = v[0]
+			radius.AcctLost5m = v[1]
+			radius.AcctLost1m = v[2]
 		}
 	case "acct avg time(5m/1m)":
-		parts := strings.Split(value, "/")
-		if len(parts) == 2 {
-			m5, _ := strconv.ParseFloat(strings.TrimSpace(parts[0]), 64)
-			m1, _ := strconv.ParseFloat(strings.TrimSpace(parts[1]), 64)
-			radius.AcctAvgTime5m = m5
-			radius.AcctAvgTime1m = m1
+		if v, ok := fields(value, 2); ok {
+			radius.AcctAvgTime5m = v[0]
+			radius.AcctAvgTime1m = v[1]
 		}
 	case "interim sent":
-		radius.InterimSent = f
+		radius.InterimSent = atof(value)
 	case "interim lost(total/5m/1m)":
-		parts := strings.Split(value, "/")
-		if len(parts) == 3 {
-			total, _ := strconv.ParseFloat(strings.TrimSpace(parts[0]), 64)
-			m5, _ := strconv.ParseFloat(strings.TrimSpace(parts[1]), 64)
-			m1, _ := strconv.ParseFloat(strings.TrimSpace(parts[2]), 64)
-			radius.InterimLostTotal = total
-			radius.InterimLost5m = m5
-			radius.InterimLost1m = m1
+		if v, ok := fields(value, 3); ok {
+			radius.InterimLostTotal = v[0]
+			radius.InterimLost5m = v[1]
+			radius.InterimLost1m = v[2]
 		}
 	case "interim avg time(5m/1m)":
-		parts := strings.Split(value, "/")
-		if len(parts) == 2 {
-			m5, _ := strconv.ParseFloat(strings.TrimSpace(parts[0]), 64)
-			m1, _ := strconv.ParseFloat(strings.TrimSpace(parts[1]), 64)
-			radius.InterimAvgTime5m = m5
-			radius.InterimAvgTime1m = m1
+		if v, ok := fields(value, 2); ok {
+			radius.InterimAvgTime5m = v[0]
+			radius.InterimAvgTime1m = v[1]
 		}
 	}
 }

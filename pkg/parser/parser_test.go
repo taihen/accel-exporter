@@ -2,8 +2,58 @@ package parser
 
 import (
 	"math"
+	"os"
+	"path/filepath"
+	"runtime"
 	"testing"
+	"time"
 )
+
+// fakeAccelCmd writes an executable shell script to a temp dir that runs body,
+// and returns its path. Skips on non-POSIX platforms.
+func fakeAccelCmd(t *testing.T, body string) string {
+	t.Helper()
+	if runtime.GOOS == "windows" {
+		t.Skip("shell-script fake not supported on windows")
+	}
+	path := filepath.Join(t.TempDir(), "accel-cmd")
+	if err := os.WriteFile(path, []byte("#!/bin/sh\n"+body+"\n"), 0o755); err != nil {
+		t.Fatalf("write fake: %v", err)
+	}
+	return path
+}
+
+func TestCollectStatsSuccess(t *testing.T) {
+	path := fakeAccelCmd(t, "cat <<'EOF'\n"+sampleStat+"EOF")
+	st, err := CollectStats(path, time.Second)
+	if err != nil {
+		t.Fatalf("CollectStats: %v", err)
+	}
+	wantEq(t, "CPUPercent", st.CPUPercent, 1.50)
+	wantEq(t, "Sessions.Active", st.Sessions.Active, 100)
+	if len(st.RadiusServers) != 1 {
+		t.Fatalf("RadiusServers = %d, want 1", len(st.RadiusServers))
+	}
+}
+
+// TestCollectStatsTimeout proves a hung accel-cmd is killed at the deadline
+// instead of wedging the scrape forever.
+func TestCollectStatsTimeout(t *testing.T) {
+	path := fakeAccelCmd(t, "sleep 5")
+	start := time.Now()
+	if _, err := CollectStats(path, 50*time.Millisecond); err == nil {
+		t.Fatal("CollectStats: want timeout error, got nil")
+	}
+	if elapsed := time.Since(start); elapsed > 2*time.Second {
+		t.Errorf("CollectStats blocked %v, timeout not enforced", elapsed)
+	}
+}
+
+func TestCollectStatsExecError(t *testing.T) {
+	if _, err := CollectStats("/nonexistent/accel-cmd-xyz", time.Second); err == nil {
+		t.Fatal("CollectStats: want exec error, got nil")
+	}
+}
 
 // sampleStat is a representative `accel-cmd show stat` capture exercising every
 // section the parser understands: the unlabelled main block, core, sessions,
@@ -162,6 +212,26 @@ func TestParseStatsEmpty(t *testing.T) {
 	if len(st.RadiusServers) != 0 {
 		t.Errorf("RadiusServers = %d, want 0", len(st.RadiusServers))
 	}
+}
+
+// TestParseStatsMalformed verifies malformed numeric fields degrade to 0
+// without aborting the parse or corrupting sibling fields. A bad sub-field in a
+// "/"-delimited value becomes 0 while its valid neighbours still parse.
+func TestParseStatsMalformed(t *testing.T) {
+	in := `radius(1, 10.0.0.1):
+  state: active
+  auth sent: notanumber
+  auth lost(total/5m/1m): bad / 1 / 0
+`
+	st, err := parseStats(in)
+	if err != nil {
+		t.Fatalf("parseStats: %v", err)
+	}
+	rs := st.RadiusServers["1"]
+	wantEq(t, "AuthSent", rs.AuthSent, 0)           // unparseable scalar -> 0
+	wantEq(t, "AuthLostTotal", rs.AuthLostTotal, 0) // bad sub-field -> 0
+	wantEq(t, "AuthLost5m", rs.AuthLost5m, 1)       // neighbours still parse
+	wantEq(t, "AuthLost1m", rs.AuthLost1m, 0)
 }
 
 func TestParseUptime(t *testing.T) {

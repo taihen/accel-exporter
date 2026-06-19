@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"time"
 )
 
 // Config holds the exporter configuration
@@ -14,6 +15,7 @@ type Config struct {
 	MetricsPath   string
 	AccelCmdPath  string
 	LogLevel      string
+	ScrapeTimeout time.Duration
 }
 
 // NewConfig creates a new configuration from command line flags
@@ -24,6 +26,7 @@ func NewConfig() *Config {
 	flag.StringVar(&cfg.MetricsPath, "web.metrics-path", "/metrics", "Path under which to expose metrics")
 	flag.StringVar(&cfg.AccelCmdPath, "accel-cmd.path", "accel-cmd", "Path to accel-cmd binary")
 	flag.StringVar(&cfg.LogLevel, "log.level", "info", "Log level (debug, info, warn, error)")
+	flag.DurationVar(&cfg.ScrapeTimeout, "accel-cmd.timeout", 5*time.Second, "Maximum time to wait for accel-cmd to return")
 
 	flag.Parse()
 

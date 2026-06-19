@@ -77,6 +77,8 @@ go install github.com/taihen/accel-exporter/cmd/accel-exporter@latest
 Usage of accel-exporter:
   -accel-cmd.path string
         Path to accel-cmd binary (default "accel-cmd")
+  -accel-cmd.timeout duration
+        Maximum time to wait for accel-cmd to return (default 5s)
   -log.level string
         Log level (debug, info, warn, error) (default "info")
   -web.listen-address string
