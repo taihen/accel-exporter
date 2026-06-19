@@ -10,7 +10,7 @@ Some small story behind this exporter on my [blog](https://taihen.org/posts/acce
 
 ## Minimum Requirements
 
-- Go 1.24 or higher (that what I'm using, most likely is compatible down to Go 1.20)
+- Go 1.26.4 or higher (that what I'm using, most likely is compatible down to Go 1.20)
 - Accel-PPP 1.12 or compatible version
 - Permission to execute `accel-cmd show stat` command
 
