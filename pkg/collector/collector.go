@@ -48,7 +48,7 @@ var (
 
 	pppoeStartingDesc    = newDesc("accel_pppoe_starting", "Number of PPPoE sessions starting.")
 	pppoeActiveDesc      = newDesc("accel_pppoe_active", "Number of active PPPoE sessions.")
-	pppoeDelayedPADODesc = newDesc("accel_pppoe_delayed_pado", "Number of delayed PADO packets.")
+	pppoeDelayedPADODesc = newDesc("accel_pppoe_delayed_pado_total", "Total delayed PADO packets.")
 	pppoeRecvPADIDesc    = newDesc("accel_pppoe_recv_padi_total", "Total received PADI packets.")
 	pppoeDropPADIDesc    = newDesc("accel_pppoe_drop_padi_total", "Total dropped PADI packets.")
 	pppoeSentPADODesc    = newDesc("accel_pppoe_sent_pado_total", "Total sent PADO packets.")
@@ -186,7 +186,7 @@ func (c *AccelCollector) Collect(ch chan<- prometheus.Metric) {
 	// PPPoE
 	gauge(pppoeStartingDesc, stats.PPPoE.Starting)
 	gauge(pppoeActiveDesc, stats.PPPoE.Active)
-	gauge(pppoeDelayedPADODesc, stats.PPPoE.DelayedPADO)
+	counter(pppoeDelayedPADODesc, stats.PPPoE.DelayedPADO)
 	counter(pppoeRecvPADIDesc, stats.PPPoE.RecvPADI)
 	counter(pppoeDropPADIDesc, stats.PPPoE.DropPADI)
 	counter(pppoeSentPADODesc, stats.PPPoE.SentPADO)

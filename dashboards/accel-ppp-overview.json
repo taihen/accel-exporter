@@ -298,7 +298,7 @@
         "id": 8,
         "targets": [
           {
-            "expr": "rate(accel_pppoe_delayed_pado[1m])",
+            "expr": "rate(accel_pppoe_delayed_pado_total[1m])",
             "legendFormat": "Delayed PADO Rate",
             "refId": "A"
           },

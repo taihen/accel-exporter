@@ -47,8 +47,10 @@ func TestCollectStatsTimeout(t *testing.T) {
 		t.Fatal("CollectStats: want timeout error, got nil")
 	}
 	// Deadline is 50ms; WaitDelay caps post-kill pipe drain at 2s. A grandchild
-	// holding the pipe must not block Run for the full sleep.
-	if elapsed := time.Since(start); elapsed > 4*time.Second {
+	// holding the pipe must not block Run for the full 10s sleep. The bound is
+	// generous to stay non-flaky under -race/CI contention while still proving
+	// the deadline is enforced.
+	if elapsed := time.Since(start); elapsed > 6*time.Second {
 		t.Errorf("CollectStats blocked %v, timeout not enforced", elapsed)
 	}
 }

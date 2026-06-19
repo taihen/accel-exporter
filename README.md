@@ -168,7 +168,7 @@ The exporter exposes the following metrics:
 
 - `accel_pppoe_starting`: Number of PPPoE sessions starting
 - `accel_pppoe_active`: Number of active PPPoE sessions
-- `accel_pppoe_delayed_pado`: Number of delayed PADO packets
+- `accel_pppoe_delayed_pado_total`: Total delayed PADO packets
 - `accel_pppoe_recv_padi_total`: Total received PADI packets
 - `accel_pppoe_drop_padi_total`: Total dropped PADI packets
 - `accel_pppoe_sent_pado_total`: Total sent PADO packets
