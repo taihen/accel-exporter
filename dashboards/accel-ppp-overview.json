@@ -400,7 +400,20 @@
           "defaults": {
             "unit": "none"
           },
-          "overrides": []
+          "overrides": [
+            {
+              "matcher": {
+                "id": "byFrameRefID",
+                "options": "A"
+              },
+              "properties": [
+                {
+                  "id": "unit",
+                  "value": "s"
+                }
+              ]
+            }
+          ]
         },
         "gridPos": {
           "h": 8,
@@ -435,7 +448,20 @@
           "defaults": {
             "unit": "none"
           },
-          "overrides": []
+          "overrides": [
+            {
+              "matcher": {
+                "id": "byFrameRefID",
+                "options": "A"
+              },
+              "properties": [
+                {
+                  "id": "unit",
+                  "value": "s"
+                }
+              ]
+            }
+          ]
         },
         "gridPos": {
           "h": 8,
@@ -470,7 +496,20 @@
           "defaults": {
             "unit": "none"
           },
-          "overrides": []
+          "overrides": [
+            {
+              "matcher": {
+                "id": "byFrameRefID",
+                "options": "A"
+              },
+              "properties": [
+                {
+                  "id": "unit",
+                  "value": "s"
+                }
+              ]
+            }
+          ]
         },
         "gridPos": {
           "h": 8,

@@ -217,19 +217,23 @@ func (c *AccelCollector) Collect(ch chan<- prometheus.Metric) {
 		rCounter(radiusAuthLostTotalDesc, rs.AuthLostTotal)
 		rGauge(radiusAuthLost5mDesc, rs.AuthLost5m)
 		rGauge(radiusAuthLost1mDesc, rs.AuthLost1m)
-		rGauge(radiusAuthAvgTime5mDesc, rs.AuthAvgTime5m)
-		rGauge(radiusAuthAvgTime1mDesc, rs.AuthAvgTime1m)
+		// accel-ppp reports avg query time in milliseconds; these metric
+		// names promise seconds, so convert here rather than in the parser
+		// (which stays a faithful unit-preserving transcription of accel-cmd's
+		// own output).
+		rGauge(radiusAuthAvgTime5mDesc, rs.AuthAvgTime5m/1000.0)
+		rGauge(radiusAuthAvgTime1mDesc, rs.AuthAvgTime1m/1000.0)
 		rCounter(radiusAcctSentDesc, rs.AcctSent)
 		rCounter(radiusAcctLostTotalDesc, rs.AcctLostTotal)
 		rGauge(radiusAcctLost5mDesc, rs.AcctLost5m)
 		rGauge(radiusAcctLost1mDesc, rs.AcctLost1m)
-		rGauge(radiusAcctAvgTime5mDesc, rs.AcctAvgTime5m)
-		rGauge(radiusAcctAvgTime1mDesc, rs.AcctAvgTime1m)
+		rGauge(radiusAcctAvgTime5mDesc, rs.AcctAvgTime5m/1000.0)
+		rGauge(radiusAcctAvgTime1mDesc, rs.AcctAvgTime1m/1000.0)
 		rCounter(radiusInterimSentDesc, rs.InterimSent)
 		rCounter(radiusInterimLostTotalDesc, rs.InterimLostTotal)
 		rGauge(radiusInterimLost5mDesc, rs.InterimLost5m)
 		rGauge(radiusInterimLost1mDesc, rs.InterimLost1m)
-		rGauge(radiusInterimAvgTime5mDesc, rs.InterimAvgTime5m)
-		rGauge(radiusInterimAvgTime1mDesc, rs.InterimAvgTime1m)
+		rGauge(radiusInterimAvgTime5mDesc, rs.InterimAvgTime5m/1000.0)
+		rGauge(radiusInterimAvgTime1mDesc, rs.InterimAvgTime1m/1000.0)
 	}
 }

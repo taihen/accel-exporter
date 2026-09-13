@@ -65,15 +65,28 @@ func TestCollectStatsExecError(t *testing.T) {
 // section the parser understands: the unlabelled main block, core, sessions,
 // pppoe, and a single radius server. Indentation is intentional — the parser
 // trims each line, so leading whitespace must not change the result.
+//
+// Every section's shape here is taken verbatim from accel-ppp's own source
+// (accel-pppd/cli/std_cmd.c, accel-pppd/ctrl/pppoe/cli.c,
+// accel-pppd/radius/serv.c) and cross-checked against a live accel-cmd
+// capture — not from this exporter's own prior (incorrect) assumptions. See
+// the parseCoreSection/parseMemory/parsePPPoESection/parseRadiusSection
+// comments for what specifically was wrong before and why.
 const sampleStat = `uptime: 138.00:05:20
 cpu: 1.50%
-mem(rss/virt): 12345 / 67890 K
+mem(rss/virt): 12345/67890 kB
 core:
-  mempool(allocated/available): 1024 / 2048
-  threads(count/active): 4 / 2
-  context(count/sleep/pending): 10 / 8 / 1
-  md_handler(count/pending): 5 / 0
-  timer(count/pending): 7 / 1
+  mempool_allocated: 1024
+  mempool_available: 2048
+  thread_count: 4
+  thread_active: 2
+  context_count: 10
+  context_sleeping: 8
+  context_pending: 1
+  md_handler_count: 5
+  md_handler_pending: 0
+  timer_count: 7
+  timer_pending: 1
 sessions:
   starting: 1
   active: 100
@@ -85,8 +98,7 @@ pppoe:
   recv PADI: 1000
   drop PADI: 5
   sent PADO: 995
-  recv PADR: 990
-  recv PADR(dup): 2
+  recv PADR(dup): 990(2)
   sent PADS: 988
   filtered: 1
 radius(1, 10.0.0.1):
@@ -95,14 +107,14 @@ radius(1, 10.0.0.1):
   request count: 50
   queue length: 3
   auth sent: 500
-  auth lost(total/5m/1m): 10 / 1 / 0
-  auth avg time(5m/1m): 12.5 / 11.0
+  auth lost(total/5m/1m): 10/1/0
+  auth avg query time(5m/1m): 12.5/11.0 ms
   acct sent: 480
-  acct lost(total/5m/1m): 5 / 0 / 0
-  acct avg time(5m/1m): 8.0 / 7.5
+  acct lost(total/5m/1m): 5/0/0
+  acct avg query time(5m/1m): 8.0/7.5 ms
   interim sent: 200
-  interim lost(total/5m/1m): 2 / 0 / 0
-  interim avg time(5m/1m): 6.0 / 5.5
+  interim lost(total/5m/1m): 2/0/0
+  interim avg query time(5m/1m): 6.0/5.5 ms
 `
 
 func wantEq(t *testing.T, name string, got, want float64) {
@@ -146,7 +158,7 @@ func TestParseStatsSessionsAndPPPoE(t *testing.T) {
 	wantEq(t, "PPPoE.Active", st.PPPoE.Active, 90)
 	wantEq(t, "PPPoE.DelayedPADO", st.PPPoE.DelayedPADO, 4)
 	wantEq(t, "PPPoE.RecvPADI", st.PPPoE.RecvPADI, 1000)
-	// "recv PADR(dup)" must not be confused with "recv PADR".
+	// "recv PADR(dup): 990(2)" is one combined line, not two.
 	wantEq(t, "PPPoE.RecvPADR", st.PPPoE.RecvPADR, 990)
 	wantEq(t, "PPPoE.RecvPADRDup", st.PPPoE.RecvPADRDup, 2)
 	wantEq(t, "PPPoE.Filtered", st.PPPoE.Filtered, 1)
@@ -240,6 +252,16 @@ func TestParseStatsMalformed(t *testing.T) {
 	wantEq(t, "AuthLost1m", rs.AuthLost1m, 0)
 }
 
+// TestParsePPPoEMalformedPADRDup verifies a "recv PADR(dup)" value that
+// doesn't match accel-ppp's "n(dup)" shape degrades both fields to 0 rather
+// than crashing or misparsing.
+func TestParsePPPoEMalformedPADRDup(t *testing.T) {
+	pppoe := &PPPoEStats{}
+	parsePPPoESection(pppoe, "recv PADR(dup)", "not-a-match")
+	wantEq(t, "RecvPADR", pppoe.RecvPADR, 0)
+	wantEq(t, "RecvPADRDup", pppoe.RecvPADRDup, 0)
+}
+
 func TestParseUptime(t *testing.T) {
 	tests := []struct {
 		name string
@@ -282,7 +304,7 @@ func TestParsePercentage(t *testing.T) {
 
 func TestParseMemory(t *testing.T) {
 	st := &Stats{}
-	parseMemory(st, "12345 / 67890 K")
+	parseMemory(st, "12345/67890 kB")
 	wantEq(t, "MemRSS", st.MemRSS, 12345)
 	wantEq(t, "MemVirt", st.MemVirt, 67890)
 
