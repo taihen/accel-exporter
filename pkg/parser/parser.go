@@ -23,7 +23,24 @@ type Stats struct {
 	Core          CoreStats
 	Sessions      SessionStats
 	PPPoE         PPPoEStats
+	L2TP          L2TPStats
 	RadiusServers map[string]RadiusStats
+}
+
+// L2TPStats contains the L2TP metrics from the "l2tp:" block of "show stat"
+// (accel-pppd/ctrl/l2tp/l2tp.c, show_stat_exec).
+type L2TPStats struct {
+	Tunnels         TunnelSessionStats
+	SessionsControl TunnelSessionStats
+	SessionsData    TunnelSessionStats
+}
+
+// TunnelSessionStats is the starting/active/finishing triple reported for
+// L2TP tunnels and for each session channel.
+type TunnelSessionStats struct {
+	Starting  float64
+	Active    float64
+	Finishing float64
 }
 
 // CoreStats contains core metrics
@@ -155,6 +172,12 @@ func parseStats(output string) (*Stats, error) {
 			parseSessionsSection(&stats.Sessions, key, value)
 		case "pppoe":
 			parsePPPoESection(&stats.PPPoE, key, value)
+		case "tunnels":
+			parseTunnelSessionStats(&stats.L2TP.Tunnels, key, value)
+		case "sessions (control channels)":
+			parseTunnelSessionStats(&stats.L2TP.SessionsControl, key, value)
+		case "sessions (data channels)":
+			parseTunnelSessionStats(&stats.L2TP.SessionsData, key, value)
 		default:
 			if strings.HasPrefix(section, "radius") {
 				radiusMatch := regexp.MustCompile(`radius\((\d+), ([\d\.]+)\)`).FindStringSubmatch(section)
@@ -410,5 +433,17 @@ func parseRadiusSection(radius *RadiusStats, key, value string) {
 			radius.InterimAvgTime5m = v[0]
 			radius.InterimAvgTime1m = v[1]
 		}
+	}
+}
+
+func parseTunnelSessionStats(s *TunnelSessionStats, key, value string) {
+	f := atof(value)
+	switch key {
+	case "starting":
+		s.Starting = f
+	case "active":
+		s.Active = f
+	case "finishing":
+		s.Finishing = f
 	}
 }

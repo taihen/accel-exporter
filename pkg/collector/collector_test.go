@@ -142,6 +142,63 @@ func TestCollectSuccess(t *testing.T) {
 	}
 }
 
+const sampleStatL2TP = `l2tp:
+  tunnels:
+    starting: 0
+    active: 2
+    finishing: 0
+  sessions (control channels):
+    starting: 1
+    active: 3
+    finishing: 0
+  sessions (data channels):
+    starting: 0
+    active: 4
+    finishing: 1
+`
+
+// TestCollectL2TP checks the tunnel gauges and that the session gauges are
+// split by the "channel" label.
+func TestCollectL2TP(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("shell-script fake not supported on windows")
+	}
+	path := filepath.Join(t.TempDir(), "accel-cmd")
+	if err := os.WriteFile(path, []byte("#!/bin/sh\ncat <<'EOF'\n"+sampleStatL2TP+"EOF\n"), 0o755); err != nil {
+		t.Fatalf("write fake: %v", err)
+	}
+	reg := prometheus.NewPedanticRegistry()
+	reg.MustRegister(NewAccelCollector(path, time.Second))
+
+	mfs, err := reg.Gather()
+	if err != nil {
+		t.Fatalf("Gather: %v", err)
+	}
+	got := map[string]float64{}
+	for _, mf := range mfs {
+		for _, m := range mf.GetMetric() {
+			key := mf.GetName()
+			for _, l := range m.GetLabel() {
+				key += "{" + l.GetName() + "=" + l.GetValue() + "}"
+			}
+			got[key] = m.GetGauge().GetValue()
+		}
+	}
+
+	want := map[string]float64{
+		"accel_l2tp_tunnels_active":                     2,
+		"accel_l2tp_sessions_starting{channel=control}": 1,
+		"accel_l2tp_sessions_active{channel=control}":   3,
+		"accel_l2tp_sessions_active{channel=data}":      4,
+		"accel_l2tp_sessions_finishing{channel=data}":   1,
+	}
+	for k, v := range want {
+		if got[k] != v {
+			t.Errorf("%s = %v, want %v", k, got[k], v)
+		}
+	}
+}
+
 // TestCollectConcurrent runs many overlapping scrapes; with the stateless
 // const-metric design this must be race-free (run with -race) and never panic.
 func TestCollectConcurrent(t *testing.T) {
