@@ -33,7 +33,12 @@ func main() {
 	log.Printf("Listening on %s, metrics path: %s", cfg.ListenAddress, cfg.MetricsPath)
 
 	// Create and register collector
-	accelCollector := collector.NewAccelCollector(cfg.AccelCmdPath, cfg.ScrapeTimeout)
+	var opts []collector.Option
+	if cfg.CollectSessions {
+		opts = append(opts, collector.WithSessions())
+		log.Printf("Per-session metrics enabled")
+	}
+	accelCollector := collector.NewAccelCollector(cfg.AccelCmdPath, cfg.ScrapeTimeout, opts...)
 	prometheus.MustRegister(accelCollector)
 
 	// Add version information

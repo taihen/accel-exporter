@@ -77,3 +77,21 @@ func TestNewConfigPortEnvOverride(t *testing.T) {
 		}
 	})
 }
+
+func TestNewConfigPerSessionMetricsAreOffByDefault(t *testing.T) {
+	t.Setenv("ACCEL_EXPORTER_PORT", "")
+	withArgs(t, nil, func() {
+		if NewConfig().CollectSessions {
+			t.Error("CollectSessions must default to false")
+		}
+	})
+}
+
+func TestNewConfigEnablesPerSessionMetrics(t *testing.T) {
+	t.Setenv("ACCEL_EXPORTER_PORT", "")
+	withArgs(t, []string{"-collector.sessions"}, func() {
+		if !NewConfig().CollectSessions {
+			t.Error("-collector.sessions did not enable CollectSessions")
+		}
+	})
+}

@@ -122,18 +122,24 @@ type AccelCollector struct {
 	accelCmdPath string
 	timeout      time.Duration
 
+	// sessions enables the optional per-session metrics (see sessions.go).
+	sessions bool
+
 	// scrapeFailures is the only persistent metric: a cumulative counter whose
 	// Inc is atomic and safe under concurrent scrapes.
 	scrapeFailures prometheus.Counter
 }
 
+// Option configures optional collector behaviour.
+type Option func(*AccelCollector)
+
 // NewAccelCollector creates a new AccelCollector. A non-positive timeout falls
 // back to DefaultScrapeTimeout.
-func NewAccelCollector(accelCmdPath string, timeout time.Duration) *AccelCollector {
+func NewAccelCollector(accelCmdPath string, timeout time.Duration, opts ...Option) *AccelCollector {
 	if timeout <= 0 {
 		timeout = DefaultScrapeTimeout
 	}
-	return &AccelCollector{
+	c := &AccelCollector{
 		accelCmdPath: accelCmdPath,
 		timeout:      timeout,
 		scrapeFailures: prometheus.NewCounter(prometheus.CounterOpts{
@@ -141,12 +147,21 @@ func NewAccelCollector(accelCmdPath string, timeout time.Duration) *AccelCollect
 			Help: "Number of errors while scraping accel-cmd.",
 		}),
 	}
+	for _, opt := range opts {
+		opt(c)
+	}
+	return c
 }
 
 // Describe implements the prometheus.Collector interface
 func (c *AccelCollector) Describe(ch chan<- *prometheus.Desc) {
 	for _, d := range allDescs {
 		ch <- d
+	}
+	if c.sessions {
+		for _, d := range sessionDescs {
+			ch <- d
+		}
 	}
 	c.scrapeFailures.Describe(ch)
 }
@@ -216,6 +231,10 @@ func (c *AccelCollector) Collect(ch chan<- prometheus.Metric) {
 		} {
 			ch <- prometheus.MustNewConstMetric(d, prometheus.GaugeValue, v, sessions.channel)
 		}
+	}
+
+	if c.sessions {
+		c.collectSessions(ch)
 	}
 
 	// PPPoE

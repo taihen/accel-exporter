@@ -79,6 +79,9 @@ Usage of accel-exporter:
         Path to accel-cmd binary (default "accel-cmd")
   -accel-cmd.timeout duration
         Maximum time to wait for accel-cmd to return (default 5s)
+  -collector.sessions
+        Export per-session metrics (labelled by username and realm) from
+        'accel-cmd show sessions'; adds a series set per live session
   -log.level string
         Log level (debug, info, warn, error) (default "info")
   -web.listen-address string
@@ -208,6 +211,29 @@ The exporter exposes the following metrics:
 - `accel_radius_interim_lost_1m`: Interim packets lost (1m window)
 - `accel_radius_interim_avg_time_5m_seconds`: Avg interim response (5m)
 - `accel_radius_interim_avg_time_1m_seconds`: Avg interim response (1m)
+
+**Per-session (opt-in with `-collector.sessions`; labels: `username`, `realm`):**
+
+Read from `accel-cmd show sessions`. Off by default because it adds a series set for every live
+session (about 7 series per session): fine for a small fleet, a real cost at thousands of sessions.
+The labels are only the username and its realm (the part after `#`, e.g. `user1#isp@vdsl`
+-> `isp@vdsl`, `none` when there is none). There is deliberately no interface-name or IP label:
+the ppp interface number is reused by unrelated sessions and addresses change on every reconnect,
+so neither is a stable identity for a subscriber. A subscriber's series therefore continue across
+reconnects; their counters restart at zero, which `rate()` treats as a counter reset. A session's
+series disappear when it ends.
+
+- `accel_session_rx_bytes_total` / `accel_session_tx_bytes_total`: Bytes received from / sent to the subscriber in the current session
+- `accel_session_rx_packets_total` / `accel_session_tx_packets_total`: Packets received from / sent to the subscriber
+- `accel_session_uptime_seconds`: Seconds since the current session started
+- `accel_session_rx_rate_limit_bytes_per_second` / `accel_session_tx_rate_limit_bytes_per_second`: Shaper limit for traffic received from / sent to the subscriber, in bytes per second (accel-ppp reports it as `down/up` Kbit/s: down = tx, up = rx); absent for unshaped sessions
+- `accel_session_parse_errors`: Lines of `show sessions` output that could not be parsed in the last scrape
+- `accel_session_duplicates_dropped`: Sessions dropped because the same username appeared twice (a subscriber can briefly appear twice while reconnecting); the newest is kept
+
+Download utilisation of a line: `rate(accel_session_tx_bytes_total[5m]) / accel_session_tx_rate_limit_bytes_per_second`
+(upload: the `rx_` pair). Traffic in Mbit/s: `rate(accel_session_tx_bytes_total{username="..."}[5m]) * 8 / 1e6`. If
+`accel-cmd show sessions` fails, only these series are dropped for that scrape; `accel_up` and the
+rest are unaffected.
 
 ## Releasing
 

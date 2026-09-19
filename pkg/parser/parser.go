@@ -4,10 +4,7 @@ package parser
 
 import (
 	"bufio"
-	"bytes"
-	"context"
 	"log"
-	"os/exec"
 	"regexp"
 	"strconv"
 	"strings"
@@ -111,26 +108,12 @@ type RadiusStats struct {
 // by timeout so a hung accel-cmd cannot wedge the scrape or leak processes; a
 // non-positive timeout disables the deadline.
 func CollectStats(accelCmdPath string, timeout time.Duration) (*Stats, error) {
-	ctx := context.Background()
-	if timeout > 0 {
-		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(ctx, timeout)
-		defer cancel()
-	}
-
-	cmd := exec.CommandContext(ctx, accelCmdPath, "show", "stat")
-	// WaitDelay bounds how long Run blocks after the context is cancelled and the
-	// process killed. Without it, a child that forks (e.g. a shell wrapper that
-	// spawns a long-running grandchild) can inherit the stdout pipe and keep it
-	// open, leaving Run stuck reading until that grandchild exits.
-	cmd.WaitDelay = 2 * time.Second
-	var out bytes.Buffer
-	cmd.Stdout = &out
-	if err := cmd.Run(); err != nil {
+	out, err := runAccelCmd(accelCmdPath, timeout, "show", "stat")
+	if err != nil {
 		return nil, err
 	}
 
-	return parseStats(out.String())
+	return parseStats(out)
 }
 
 // parseStats parses the output of accel-cmd show stat
