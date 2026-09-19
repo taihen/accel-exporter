@@ -117,6 +117,35 @@ radius(1, 10.0.0.1):
   interim avg query time(5m/1m): 6.0/5.5 ms
 `
 
+// sampleL2TP is a representative "show stat" capture of just the "l2tp:"
+// block, as printed by accel-pppd/ctrl/l2tp/l2tp.c's show_stat_exec.
+const sampleL2TP = `l2tp:
+  tunnels:
+    starting: 0
+    active: 2
+    finishing: 0
+  sessions (control channels):
+    starting: 1
+    active: 3
+    finishing: 0
+  sessions (data channels):
+    starting: 0
+    active: 3
+    finishing: 1
+`
+
+func TestParseStatsL2TP(t *testing.T) {
+	st, err := parseStats(sampleL2TP)
+	if err != nil {
+		t.Fatalf("parseStats: %v", err)
+	}
+	wantEq(t, "L2TP.Tunnels.Active", st.L2TP.Tunnels.Active, 2)
+	wantEq(t, "L2TP.SessionsControl.Starting", st.L2TP.SessionsControl.Starting, 1)
+	wantEq(t, "L2TP.SessionsControl.Active", st.L2TP.SessionsControl.Active, 3)
+	wantEq(t, "L2TP.SessionsData.Active", st.L2TP.SessionsData.Active, 3)
+	wantEq(t, "L2TP.SessionsData.Finishing", st.L2TP.SessionsData.Finishing, 1)
+}
+
 func wantEq(t *testing.T, name string, got, want float64) {
 	t.Helper()
 	if got != want {

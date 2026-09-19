@@ -18,6 +18,11 @@ import (
 // radiusLabels are the labels attached to every per-RADIUS-server metric.
 var radiusLabels = []string{"server_id", "server_ip"}
 
+// l2tpChannelLabels distinguish the two session sub-blocks accel-ppp reports
+// under "l2tp:": the control channel (tunnel/session control plane) and the
+// data channel (the PPP session itself).
+var l2tpChannelLabels = []string{"channel"}
+
 func newDesc(name, help string, labels ...string) *prometheus.Desc {
 	return prometheus.NewDesc(name, help, labels, nil)
 }
@@ -45,6 +50,14 @@ var (
 	sessionsStartingDesc  = newDesc("accel_sessions_starting", "Number of sessions starting.")
 	sessionsActiveDesc    = newDesc("accel_sessions_active", "Number of active sessions.")
 	sessionsFinishingDesc = newDesc("accel_sessions_finishing", "Number of sessions finishing.")
+
+	l2tpTunnelsStartingDesc  = newDesc("accel_l2tp_tunnels_starting", "Number of L2TP tunnels starting.")
+	l2tpTunnelsActiveDesc    = newDesc("accel_l2tp_tunnels_active", "Number of active L2TP tunnels.")
+	l2tpTunnelsFinishingDesc = newDesc("accel_l2tp_tunnels_finishing", "Number of L2TP tunnels finishing.")
+
+	l2tpSessionsStartingDesc  = newDesc("accel_l2tp_sessions_starting", "Number of L2TP sessions starting, by channel (control/data).", l2tpChannelLabels...)
+	l2tpSessionsActiveDesc    = newDesc("accel_l2tp_sessions_active", "Number of active L2TP sessions, by channel (control/data).", l2tpChannelLabels...)
+	l2tpSessionsFinishingDesc = newDesc("accel_l2tp_sessions_finishing", "Number of L2TP sessions finishing, by channel (control/data).", l2tpChannelLabels...)
 
 	pppoeStartingDesc    = newDesc("accel_pppoe_starting", "Number of PPPoE sessions starting.")
 	pppoeActiveDesc      = newDesc("accel_pppoe_active", "Number of active PPPoE sessions.")
@@ -88,6 +101,8 @@ var allDescs = []*prometheus.Desc{
 	coreContextCountDesc, coreContextSleepingDesc, coreContextPendingDesc,
 	coreMDHandlerCountDesc, coreMDHandlerPendingDesc, coreTimerCountDesc, coreTimerPendingDesc,
 	sessionsStartingDesc, sessionsActiveDesc, sessionsFinishingDesc,
+	l2tpTunnelsStartingDesc, l2tpTunnelsActiveDesc, l2tpTunnelsFinishingDesc,
+	l2tpSessionsStartingDesc, l2tpSessionsActiveDesc, l2tpSessionsFinishingDesc,
 	pppoeStartingDesc, pppoeActiveDesc, pppoeDelayedPADODesc, pppoeRecvPADIDesc, pppoeDropPADIDesc,
 	pppoeSentPADODesc, pppoeRecvPADRDesc, pppoeRecvPADRDupDesc, pppoeSentPADSDesc, pppoeFilteredDesc,
 	radiusStateDesc, radiusFailCountDesc, radiusRequestCountDesc, radiusQueueLengthDesc,
@@ -182,6 +197,26 @@ func (c *AccelCollector) Collect(ch chan<- prometheus.Metric) {
 	gauge(sessionsStartingDesc, stats.Sessions.Starting)
 	gauge(sessionsActiveDesc, stats.Sessions.Active)
 	gauge(sessionsFinishingDesc, stats.Sessions.Finishing)
+
+	// L2TP
+	gauge(l2tpTunnelsStartingDesc, stats.L2TP.Tunnels.Starting)
+	gauge(l2tpTunnelsActiveDesc, stats.L2TP.Tunnels.Active)
+	gauge(l2tpTunnelsFinishingDesc, stats.L2TP.Tunnels.Finishing)
+	for _, sessions := range []struct {
+		channel string
+		stats   parser.TunnelSessionStats
+	}{
+		{"control", stats.L2TP.SessionsControl},
+		{"data", stats.L2TP.SessionsData},
+	} {
+		for d, v := range map[*prometheus.Desc]float64{
+			l2tpSessionsStartingDesc:  sessions.stats.Starting,
+			l2tpSessionsActiveDesc:    sessions.stats.Active,
+			l2tpSessionsFinishingDesc: sessions.stats.Finishing,
+		} {
+			ch <- prometheus.MustNewConstMetric(d, prometheus.GaugeValue, v, sessions.channel)
+		}
+	}
 
 	// PPPoE
 	gauge(pppoeStartingDesc, stats.PPPoE.Starting)

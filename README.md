@@ -164,6 +164,13 @@ The exporter exposes the following metrics:
 - `accel_sessions_active`: Number of active sessions
 - `accel_sessions_finishing`: Number of sessions finishing
 
+**L2TP:**
+
+- `accel_l2tp_tunnels_starting` / `_active` / `_finishing`: L2TP tunnel counts
+- `accel_l2tp_sessions_starting` / `_active` / `_finishing` (Labels: `channel` = `control` or `data`):
+  L2TP session counts, split by control channel (tunnel/session control plane) and
+  data channel (the PPP session itself)
+
 **PPPoE:**
 
 - `accel_pppoe_starting`: Number of PPPoE sessions starting
