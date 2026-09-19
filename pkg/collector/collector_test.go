@@ -14,7 +14,7 @@ import (
 
 const sampleStat = `uptime: 138.00:05:20
 cpu: 1.50%
-mem(rss/virt): 12345 / 67890 K
+mem(rss/virt): 12345/67890 kB
 pppoe:
   active: 90
   recv PADI: 1000

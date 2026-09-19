@@ -259,42 +259,48 @@ func parsePercentage(value string) float64 {
 }
 
 func parseMemory(stats *Stats, value string) {
-	// Example: "12345 / 67890 K"
-	if v, ok := fields(strings.TrimSuffix(value, " K"), 2); ok {
+	// Real format (accel-pppd/cli/std_cmd.c: "mem(rss/virt): %lu/%lu kB"),
+	// e.g. "10356/402548 kB" — confirmed against a live accel-cmd capture.
+	// The trailing unit is "kB" (no leading space before "k"), not " K":
+	// trimming the wrong suffix left it attached to the second field, which
+	// then failed to parse as a number and silently zeroed MemVirt.
+	value = strings.TrimSpace(strings.TrimSuffix(strings.TrimSpace(value), "kB"))
+	if v, ok := fields(value, 2); ok {
 		stats.MemRSS = v[0]
 		stats.MemVirt = v[1]
 	}
 }
 
 func parseCoreSection(core *CoreStats, key, value string) {
+	// Real format is flat single-value keys (accel-pppd/cli/std_cmd.c), e.g.
+	// "mempool_allocated: 223472" — confirmed against a live accel-cmd
+	// capture. The combined "mempool(allocated/available): 1024 / 2048"
+	// shape below never matched any real accel-ppp output; every field in
+	// this section was silently stuck at 0 as a result.
+	f := atof(value)
 	switch key {
-	case "mempool(allocated/available)":
-		// Example: "1024 / 2048"
-		if v, ok := fields(value, 2); ok {
-			core.MempoolAllocated = v[0]
-			core.MempoolAvailable = v[1]
-		}
-	case "threads(count/active)":
-		if v, ok := fields(value, 2); ok {
-			core.ThreadCount = v[0]
-			core.ThreadActive = v[1]
-		}
-	case "context(count/sleep/pending)":
-		if v, ok := fields(value, 3); ok {
-			core.ContextCount = v[0]
-			core.ContextSleeping = v[1]
-			core.ContextPending = v[2]
-		}
-	case "md_handler(count/pending)":
-		if v, ok := fields(value, 2); ok {
-			core.MDHandlerCount = v[0]
-			core.MDHandlerPending = v[1]
-		}
-	case "timer(count/pending)":
-		if v, ok := fields(value, 2); ok {
-			core.TimerCount = v[0]
-			core.TimerPending = v[1]
-		}
+	case "mempool_allocated":
+		core.MempoolAllocated = f
+	case "mempool_available":
+		core.MempoolAvailable = f
+	case "thread_count":
+		core.ThreadCount = f
+	case "thread_active":
+		core.ThreadActive = f
+	case "context_count":
+		core.ContextCount = f
+	case "context_sleeping":
+		core.ContextSleeping = f
+	case "context_pending":
+		core.ContextPending = f
+	case "md_handler_count":
+		core.MDHandlerCount = f
+	case "md_handler_pending":
+		core.MDHandlerPending = f
+	case "timer_count":
+		core.TimerCount = f
+	case "timer_pending":
+		core.TimerPending = f
 	}
 }
 
@@ -310,29 +316,40 @@ func parseSessionsSection(sessions *SessionStats, key, value string) {
 	}
 }
 
+// padrDupPattern matches accel-ppp's combined "recv PADR(dup)" value, e.g.
+// "5(2)" — see the case below.
+var padrDupPattern = regexp.MustCompile(`^(\d+)\((\d+)\)$`)
+
 func parsePPPoESection(pppoe *PPPoEStats, key, value string) {
-	f := atof(value)
 	switch key {
 	case "starting":
-		pppoe.Starting = f
+		pppoe.Starting = atof(value)
 	case "active":
-		pppoe.Active = f
+		pppoe.Active = atof(value)
 	case "delayed PADO":
-		pppoe.DelayedPADO = f
+		pppoe.DelayedPADO = atof(value)
 	case "recv PADI":
-		pppoe.RecvPADI = f
+		pppoe.RecvPADI = atof(value)
 	case "drop PADI":
-		pppoe.DropPADI = f
+		pppoe.DropPADI = atof(value)
 	case "sent PADO":
-		pppoe.SentPADO = f
-	case "recv PADR":
-		pppoe.RecvPADR = f
+		pppoe.SentPADO = atof(value)
 	case "recv PADR(dup)":
-		pppoe.RecvPADRDup = f
+		// Real accel-ppp emits this as one combined line (accel-pppd/ctrl/
+		// pppoe/cli.c: "recv PADR(dup): %lu(%lu)", e.g. "5(2)"), not two
+		// separate "recv PADR"/"recv PADR(dup)" lines — "recv PADR" alone
+		// never appears in real output, and the old plain-atof parse of
+		// this combined value always failed and logged an error.
+		if m := padrDupPattern.FindStringSubmatch(value); m != nil {
+			pppoe.RecvPADR = atof(m[1])
+			pppoe.RecvPADRDup = atof(m[2])
+		} else {
+			log.Printf("parser: cannot parse %q as \"n(dup)\"", value)
+		}
 	case "sent PADS":
-		pppoe.SentPADS = f
+		pppoe.SentPADS = atof(value)
 	case "filtered":
-		pppoe.Filtered = f
+		pppoe.Filtered = atof(value)
 	}
 }
 
@@ -354,8 +371,14 @@ func parseRadiusSection(radius *RadiusStats, key, value string) {
 			radius.AuthLost5m = v[1]
 			radius.AuthLost1m = v[2]
 		}
-	case "auth avg time(5m/1m)":
-		if v, ok := fields(value, 2); ok {
+	case "auth avg query time(5m/1m)":
+		// Real key includes "query" (accel-pppd/radius/serv.c: "auth avg
+		// query time(5m/1m): %lu/%lu ms") and the value carries a trailing
+		// " ms" unit the old code never stripped — both the wrong key and
+		// the unstripped unit meant this never matched real output.
+		// Values are milliseconds; AuthAvgTime5m/1m stay milliseconds here,
+		// the collector converts to seconds to match the metric name.
+		if v, ok := fields(strings.TrimSuffix(value, " ms"), 2); ok {
 			radius.AuthAvgTime5m = v[0]
 			radius.AuthAvgTime1m = v[1]
 		}
@@ -367,8 +390,9 @@ func parseRadiusSection(radius *RadiusStats, key, value string) {
 			radius.AcctLost5m = v[1]
 			radius.AcctLost1m = v[2]
 		}
-	case "acct avg time(5m/1m)":
-		if v, ok := fields(value, 2); ok {
+	case "acct avg query time(5m/1m)":
+		// Same "query" + trailing " ms" fix as auth above.
+		if v, ok := fields(strings.TrimSuffix(value, " ms"), 2); ok {
 			radius.AcctAvgTime5m = v[0]
 			radius.AcctAvgTime1m = v[1]
 		}
@@ -380,8 +404,9 @@ func parseRadiusSection(radius *RadiusStats, key, value string) {
 			radius.InterimLost5m = v[1]
 			radius.InterimLost1m = v[2]
 		}
-	case "interim avg time(5m/1m)":
-		if v, ok := fields(value, 2); ok {
+	case "interim avg query time(5m/1m)":
+		// Same "query" + trailing " ms" fix as auth above.
+		if v, ok := fields(strings.TrimSuffix(value, " ms"), 2); ok {
 			radius.InterimAvgTime5m = v[0]
 			radius.InterimAvgTime1m = v[1]
 		}
