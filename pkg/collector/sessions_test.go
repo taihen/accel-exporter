@@ -4,7 +4,6 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
-	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -13,10 +12,10 @@ import (
 	dto "github.com/prometheus/client_model/go"
 )
 
-const sampleSessions = ` username | rate-limit | uptime-raw | rx-bytes-raw | tx-bytes-raw | rx-pkts | tx-pkts
-----------+------------+------------+--------------+--------------+---------+--------
- user1#isp@vdsl | 102400/40960 | 122529 | 850000000 | 18000000000 | 900000 | 1200000
- user2#isp@ftth |  | 57903 | 100 | 200 | 3 | 4
+const sampleSessions = ` sid | username | rate-limit | uptime-raw | rx-bytes-raw | tx-bytes-raw | rx-pkts | tx-pkts
+------+----------+------------+--------------+--------------+---------+--------
+ sid-1 | user1#isp@vdsl | 102400/40960 | 122529 | 850000000 | 18000000000 | 900000 | 1200000
+ sid-2 | user2#isp@ftth |  | 57903 | 100 | 200 | 3 | 4
 `
 
 // fakeSessionsCollector returns a collector backed by a fake accel-cmd that
@@ -92,10 +91,10 @@ func TestSessionsAreOffByDefault(t *testing.T) {
 	}
 }
 
-func TestSessionCountersAreLabelledByUsernameAndRealm(t *testing.T) {
+func TestSessionCountersAreLabelledBySidUsernameAndRealm(t *testing.T) {
 	fams := gatherFamilies(t, fakeSessionsCollector(t, sampleSessions, WithSessions()))
 
-	user := map[string]string{"username": "user1#isp@vdsl", "realm": "isp@vdsl"}
+	user := map[string]string{"sid": "sid-1", "username": "user1#isp@vdsl", "realm": "isp@vdsl"}
 	cases := map[string]float64{
 		"accel_session_rx_bytes_total":   850000000,
 		"accel_session_tx_bytes_total":   18000000000,
@@ -115,7 +114,7 @@ func TestSessionCountersAreLabelledByUsernameAndRealm(t *testing.T) {
 
 func TestSessionLabelsNeverIncludeAddressesOrInterfaces(t *testing.T) {
 	fams := gatherFamilies(t, fakeSessionsCollector(t, sampleSessions, WithSessions()))
-	allowed := map[string]bool{"username": true, "realm": true}
+	allowed := map[string]bool{"sid": true, "username": true, "realm": true}
 	for name, mf := range fams {
 		if !strings.HasPrefix(name, "accel_session_") {
 			continue
@@ -182,25 +181,61 @@ func TestSessionsNoSessionsEmitsNoSeries(t *testing.T) {
 	}
 }
 
-func TestDuplicateUsernamesYieldOneSeriesAndAreCounted(t *testing.T) {
-	dup := sampleSessions + " user1#isp@vdsl | 1/1 | 5 | 9 | 9 | 9 | 9\n"
-	fams := gatherFamilies(t, fakeSessionsCollector(t, dup, WithSessions()))
+// One username with two live sessions (accel-ppp's default, unless
+// single-session is set) must yield one series per session, none dropped.
+func TestConcurrentSessionsOfOneUserAreBothExported(t *testing.T) {
+	second := sampleSessions + " sid-9 | user1#isp@vdsl | 1/1 | 5 | 9 | 9 | 9 | 9\n"
+	fams := gatherFamilies(t, fakeSessionsCollector(t, second, WithSessions()))
 
 	mf := fams["accel_session_tx_bytes_total"]
-	var names []string
-	for _, m := range mf.GetMetric() {
-		names = append(names, labelsOf(m)["username"])
+	if len(mf.GetMetric()) != 3 {
+		t.Fatalf("want 3 series (2 sessions of user1 + user2), got %v", mf.GetMetric())
 	}
-	sort.Strings(names)
-	if len(names) != 2 {
-		t.Fatalf("want 2 series (duplicate collapsed), got %v", names)
+	older := findSeries(t, mf, map[string]string{"sid": "sid-1"})
+	newer := findSeries(t, mf, map[string]string{"sid": "sid-9"})
+	if older.GetCounter().GetValue() != 18000000000 || newer.GetCounter().GetValue() != 9 {
+		t.Errorf("per-session values mixed up: older=%v newer=%v", older, newer)
 	}
-	kept := findSeries(t, mf, map[string]string{"username": "user1#isp@vdsl"})
-	if kept.GetCounter().GetValue() != 9 {
-		t.Errorf("kept the older duplicate: %v", kept)
+	if _, ok := fams["accel_session_duplicates_dropped"]; ok {
+		t.Error("accel_session_duplicates_dropped must not exist: nothing is dropped any more")
 	}
-	if d := fams["accel_session_duplicates_dropped"]; d == nil || d.GetMetric()[0].GetGauge().GetValue() != 1 {
-		t.Errorf("accel_session_duplicates_dropped = %v, want 1", d)
+}
+
+// slowCollector returns a collector whose fake accel-cmd takes 700ms per call,
+// against a 1s budget: two sequential calls fit only if each gets its own
+// full timeout.
+func slowCollector(t *testing.T, opts ...Option) *AccelCollector {
+	t.Helper()
+	if runtime.GOOS == "windows" {
+		t.Skip("shell-script fake not supported on windows")
+	}
+	script := "#!/bin/sh\nsleep 0.7\ncase \"$1 $2\" in\n\"show sessions\")\ncat <<'EOF'\n" + sampleSessions + "EOF\n;;\n*)\ncat <<'EOF'\n" + sampleStat + "EOF\n;;\nesac\n"
+	path := filepath.Join(t.TempDir(), "accel-cmd")
+	if err := os.WriteFile(path, []byte(script), 0o755); err != nil {
+		t.Fatalf("write fake: %v", err)
+	}
+	return NewAccelCollector(path, time.Second, opts...)
+}
+
+// TestScrapeSharesOneDeadlineAcrossCommands guards the HTTP WriteTimeout
+// budget: -accel-cmd.timeout bounds the whole scrape, not each command.
+func TestScrapeSharesOneDeadlineAcrossCommands(t *testing.T) {
+	start := time.Now()
+	fams := gatherFamilies(t, slowCollector(t, WithSessions()))
+	elapsed := time.Since(start)
+
+	if up := fams["accel_up"]; up == nil || up.GetMetric()[0].GetGauge().GetValue() != 1 {
+		t.Errorf("accel_up = %v, want 1: show stat fits the budget", up)
+	}
+	if _, ok := fams["accel_session_rx_bytes_total"]; ok {
+		t.Error("show sessions ran past the shared 1s deadline, its series must be dropped")
+	}
+	// The budget plus runAccelCmd's 2s WaitDelay (a killed script's child can
+	// hold the pipe open that long) must stay inside the server's WriteTimeout
+	// of budget+10s. Without a shared deadline the two calls would take ~1.4s
+	// and show sessions would succeed, which the check above already catches.
+	if limit := time.Second + 2*time.Second + 500*time.Millisecond; elapsed > limit {
+		t.Errorf("scrape took %v, want at most %v", elapsed, limit)
 	}
 }
 

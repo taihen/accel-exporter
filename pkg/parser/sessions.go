@@ -1,23 +1,27 @@
 package parser
 
 import (
+	"context"
 	"strconv"
 	"strings"
-	"time"
 )
 
 // sessionColumns are the "accel-cmd show sessions" columns the exporter reads.
-// Deliberately no ifname, IP or delegated-prefix column: the ppp interface
-// number is reused by unrelated sessions, and addresses change on every
-// reconnect, so neither is a stable label for a subscriber.
-const sessionColumns = "username,rate-limit,uptime-raw,rx-bytes-raw,tx-bytes-raw,rx-pkts,tx-pkts"
+// sid identifies a session: the same username can have several live sessions
+// (accel-ppp allows that unless single-session is set). Deliberately no
+// ifname, IP or delegated-prefix column: the ppp interface number is reused by
+// unrelated sessions and addresses change on every reconnect.
+//
+// rate-limit is registered by the shaper module. Without it accel-ppp rejects
+// the whole command ("unknown column"), so no session metrics are exported.
+const sessionColumns = "sid,username,rate-limit,uptime-raw,rx-bytes-raw,tx-bytes-raw,rx-pkts,tx-pkts"
 
-const sessionFieldCount = 7
+const sessionFieldCount = 8
 
 // Session is one live accel-ppp session, as reported by "show sessions".
-// The counters cover only the current session and restart at zero when the
-// subscriber reconnects.
+// The counters cover only this session and start at zero when it starts.
 type Session struct {
+	SID          string
 	Username     string
 	Uptime       float64 // seconds
 	RxBytes      float64 // received from the subscriber
@@ -39,31 +43,11 @@ func RealmOf(username string) string {
 	return realm
 }
 
-// DedupeSessions keeps one session per username (the newest, i.e. smallest
-// uptime) and reports how many were dropped. A subscriber can briefly appear
-// twice while reconnecting, and duplicate label sets are invalid for Prometheus.
-func DedupeSessions(sessions []Session) ([]Session, int) {
-	newest := make(map[string]int, len(sessions))
-	out := make([]Session, 0, len(sessions))
-	for _, s := range sessions {
-		i, seen := newest[s.Username]
-		if !seen {
-			newest[s.Username] = len(out)
-			out = append(out, s)
-			continue
-		}
-		if s.Uptime < out[i].Uptime {
-			out[i] = s
-		}
-	}
-	return out, len(sessions) - len(out)
-}
-
 // CollectSessions executes "accel-cmd show sessions" and parses its table
 // output. It returns the sessions plus the number of lines that could not be
-// parsed. The command is bounded by timeout like CollectStats.
-func CollectSessions(accelCmdPath string, timeout time.Duration) ([]Session, int, error) {
-	out, err := runAccelCmd(accelCmdPath, timeout, "show", "sessions", sessionColumns)
+// parsed. The command is bounded by ctx like CollectStats.
+func CollectSessions(ctx context.Context, accelCmdPath string) ([]Session, int, error) {
+	out, err := runAccelCmd(ctx, accelCmdPath, "show", "sessions", sessionColumns)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -100,7 +84,7 @@ func isSessionsHeaderOrRule(line string) bool {
 		return true
 	}
 	first, _, _ := strings.Cut(trimmed, "|")
-	return strings.TrimSpace(first) == "username"
+	return strings.TrimSpace(first) == "sid"
 }
 
 func parseSessionRow(line string) (Session, bool) {
@@ -111,16 +95,16 @@ func parseSessionRow(line string) (Session, bool) {
 	for i := range fields {
 		fields[i] = strings.TrimSpace(fields[i])
 	}
-	if fields[0] == "" {
+	if fields[0] == "" || fields[1] == "" {
 		return Session{}, false
 	}
 
-	s := Session{Username: fields[0]}
-	s.RateDownKbit, s.RateUpKbit, s.HasRate = parseRateLimit(fields[1])
+	s := Session{SID: fields[0], Username: fields[1]}
+	s.RateDownKbit, s.RateUpKbit, s.HasRate = parseRateLimit(fields[2])
 
 	nums := []*float64{&s.Uptime, &s.RxBytes, &s.TxBytes, &s.RxPackets, &s.TxPackets}
 	for i, dst := range nums {
-		v, err := strconv.ParseFloat(fields[2+i], 64)
+		v, err := strconv.ParseFloat(fields[3+i], 64)
 		if err != nil {
 			return Session{}, false
 		}

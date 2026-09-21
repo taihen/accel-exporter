@@ -7,16 +7,9 @@ import (
 	"time"
 )
 
-// runAccelCmd runs accel-cmd with args and returns its stdout. A positive
-// timeout bounds the whole call.
-func runAccelCmd(accelCmdPath string, timeout time.Duration, args ...string) (string, error) {
-	ctx := context.Background()
-	if timeout > 0 {
-		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(ctx, timeout)
-		defer cancel()
-	}
-
+// runAccelCmd runs accel-cmd with args and returns its stdout. The call is
+// bounded by ctx, so callers can share one deadline across several commands.
+func runAccelCmd(ctx context.Context, accelCmdPath string, args ...string) (string, error) {
 	cmd := exec.CommandContext(ctx, accelCmdPath, args...)
 	// WaitDelay bounds how long Run blocks after the context is cancelled and the
 	// process killed. Without it, a child that forks (e.g. a shell wrapper that

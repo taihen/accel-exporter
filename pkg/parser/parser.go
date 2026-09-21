@@ -4,11 +4,11 @@ package parser
 
 import (
 	"bufio"
+	"context"
 	"log"
 	"regexp"
 	"strconv"
 	"strings"
-	"time"
 )
 
 // Stats represents all statistics gathered from accel-cmd
@@ -105,10 +105,9 @@ type RadiusStats struct {
 }
 
 // CollectStats executes accel-cmd and parses its output. The command is bounded
-// by timeout so a hung accel-cmd cannot wedge the scrape or leak processes; a
-// non-positive timeout disables the deadline.
-func CollectStats(accelCmdPath string, timeout time.Duration) (*Stats, error) {
-	out, err := runAccelCmd(accelCmdPath, timeout, "show", "stat")
+// by ctx so a hung accel-cmd cannot wedge the scrape or leak processes.
+func CollectStats(ctx context.Context, accelCmdPath string) (*Stats, error) {
+	out, err := runAccelCmd(ctx, accelCmdPath, "show", "stat")
 	if err != nil {
 		return nil, err
 	}

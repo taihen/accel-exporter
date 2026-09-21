@@ -1,14 +1,17 @@
 package parser
 
-import "testing"
+import (
+	"context"
+	"testing"
+)
 
-const sessionsHeader = " username | rate-limit | uptime-raw | rx-bytes-raw | tx-bytes-raw | rx-pkts | tx-pkts\n" +
-	"----------+------------+------------+--------------+--------------+---------+--------\n"
+const sessionsHeader = " sid | username | rate-limit | uptime-raw | rx-bytes-raw | tx-bytes-raw | rx-pkts | tx-pkts\n" +
+	"------+----------+------------+------------+--------------+--------------+---------+--------\n"
 
 const (
-	rowVDSL  = " user1#isp@vdsl | 102400/40960 | 122529 | 850000000 | 18000000000 | 900000 | 1200000\n"
-	rowFTTH  = " user2#isp@ftth |  | 57903 | 100 | 200 | 3 | 4\n"
-	rowPlain = " customer-a | 50000/50000 | 10 | 1 | 2 | 3 | 4\n"
+	rowVDSL  = " sid-1 | user1#isp@vdsl | 102400/40960 | 122529 | 850000000 | 18000000000 | 900000 | 1200000\n"
+	rowFTTH  = " sid-2 | user2#isp@ftth |  | 57903 | 100 | 200 | 3 | 4\n"
+	rowPlain = " sid-3 | customer-a | 50000/50000 | 10 | 1 | 2 | 3 | 4\n"
 )
 
 func TestParseSessionsReadsAllColumns(t *testing.T) {
@@ -17,7 +20,7 @@ func TestParseSessionsReadsAllColumns(t *testing.T) {
 		t.Fatalf("got %d sessions, %d errors", len(sessions), errs)
 	}
 	s := sessions[0]
-	if s.Username != "user1#isp@vdsl" {
+	if s.SID != "sid-1" || s.Username != "user1#isp@vdsl" {
 		t.Errorf("username wrong: %+v", s)
 	}
 	if s.RxBytes != 850000000 || s.TxBytes != 18000000000 || s.RxPackets != 900000 || s.TxPackets != 1200000 || s.Uptime != 122529 {
@@ -51,7 +54,7 @@ func TestParseSessionsEmptyOutput(t *testing.T) {
 }
 
 func TestParseSessionsCountsMalformedRows(t *testing.T) {
-	bad := " broken | row\n not-a-table-line\n l | | notanumber | 1 | 1 | 1 | 1\n"
+	bad := " broken | row\n not-a-table-line\n s | l | | notanumber | 1 | 1 | 1 | 1\n"
 	sessions, errs := parseSessions(sessionsHeader + rowVDSL + bad)
 	if len(sessions) != 1 || errs != 3 {
 		t.Fatalf("got %d sessions, %d errors, want 1 and 3", len(sessions), errs)
@@ -72,34 +75,32 @@ func TestRealmOf(t *testing.T) {
 	}
 }
 
-func TestDedupeSessionsKeepsNewest(t *testing.T) {
-	older := Session{Username: "dup#r", RxBytes: 1, Uptime: 5000}
-	newer := Session{Username: "dup#r", RxBytes: 9, Uptime: 5}
-	other := Session{Username: "other", Uptime: 1}
-	got, dropped := DedupeSessions([]Session{older, newer, other})
-	if dropped != 1 || len(got) != 2 {
-		t.Fatalf("got %d sessions, %d dropped", len(got), dropped)
+// The same username can have several live sessions (accel-ppp allows that
+// unless single-session is set); they are told apart by sid.
+func TestParseSessionsKeepsConcurrentSessionsOfOneUser(t *testing.T) {
+	second := " sid-9 | user1#isp@vdsl | 1/1 | 5 | 9 | 9 | 9 | 9\n"
+	sessions, errs := parseSessions(sessionsHeader + rowVDSL + second)
+	if errs != 0 || len(sessions) != 2 {
+		t.Fatalf("got %d sessions, %d errors, want 2 and 0", len(sessions), errs)
 	}
-	for _, s := range got {
-		if s.Username == "dup#r" && s.RxBytes != 9 {
-			t.Errorf("kept the older session: %+v", s)
-		}
+	if sessions[0].SID == sessions[1].SID {
+		t.Errorf("sessions not distinguished by sid: %+v", sessions)
 	}
 }
 
 func TestCollectSessionsRunsShowSessionsWithRawColumns(t *testing.T) {
 	path := fakeAccelCmd(t, "[ \"$1 $2\" = \"show sessions\" ] || exit 1\n"+
-		"case \"$3\" in *username*rx-bytes-raw*tx-bytes-raw*) ;; *) exit 2;; esac\n"+
+		"case \"$3\" in *sid*username*rx-bytes-raw*tx-bytes-raw*) ;; *) exit 2;; esac\n"+
 		"case \"$3\" in *,ip*|ip,*|*ifname*) exit 3;; esac\n"+
 		"cat <<'EOF'\n"+sessionsHeader+rowVDSL+"EOF")
-	sessions, errs, err := CollectSessions(path, 0)
+	sessions, errs, err := CollectSessions(context.Background(), path)
 	if err != nil || errs != 0 || len(sessions) != 1 {
 		t.Fatalf("got %v sessions, %d errors, err=%v", sessions, errs, err)
 	}
 }
 
 func TestCollectSessionsFailure(t *testing.T) {
-	if _, _, err := CollectSessions("/nonexistent/accel-cmd-xyz", 0); err == nil {
+	if _, _, err := CollectSessions(context.Background(), "/nonexistent/accel-cmd-xyz"); err == nil {
 		t.Fatal("want an error for a missing accel-cmd")
 	}
 }

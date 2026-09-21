@@ -17,7 +17,7 @@ type Config struct {
 	LogLevel      string
 	ScrapeTimeout time.Duration
 
-	// CollectSessions enables the per-session metrics (username/realm labelled).
+	// CollectSessions enables the per-session metrics (sid/username/realm labelled).
 	CollectSessions bool
 }
 
@@ -29,8 +29,8 @@ func NewConfig() *Config {
 	flag.StringVar(&cfg.MetricsPath, "web.metrics-path", "/metrics", "Path under which to expose metrics")
 	flag.StringVar(&cfg.AccelCmdPath, "accel-cmd.path", "accel-cmd", "Path to accel-cmd binary")
 	flag.StringVar(&cfg.LogLevel, "log.level", "info", "Log level (debug, info, warn, error)")
-	flag.BoolVar(&cfg.CollectSessions, "collector.sessions", false, "Export per-session metrics (labelled by username and realm) from 'accel-cmd show sessions'; adds a series set per live session")
-	flag.DurationVar(&cfg.ScrapeTimeout, "accel-cmd.timeout", 5*time.Second, "Maximum time to wait for accel-cmd to return")
+	flag.BoolVar(&cfg.CollectSessions, "collector.sessions", false, "Export per-session metrics (labelled by sid, username and realm) from 'accel-cmd show sessions'; needs the shaper module and adds a series set per live session")
+	flag.DurationVar(&cfg.ScrapeTimeout, "accel-cmd.timeout", 5*time.Second, "Maximum time for all accel-cmd calls in one scrape")
 
 	flag.Parse()
 

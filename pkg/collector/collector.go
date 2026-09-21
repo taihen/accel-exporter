@@ -8,6 +8,7 @@
 package collector
 
 import (
+	"context"
 	"log"
 	"time"
 
@@ -170,7 +171,12 @@ func (c *AccelCollector) Describe(ch chan<- *prometheus.Desc) {
 // metrics from a fresh snapshot, so it holds no mutable state between or during
 // scrapes and is safe to run concurrently.
 func (c *AccelCollector) Collect(ch chan<- prometheus.Metric) {
-	stats, err := parser.CollectStats(c.accelCmdPath, c.timeout)
+	// One deadline for every accel-cmd call in this scrape, so the total stays
+	// within the HTTP server's WriteTimeout however many collectors are on.
+	ctx, cancel := context.WithTimeout(context.Background(), c.timeout)
+	defer cancel()
+
+	stats, err := parser.CollectStats(ctx, c.accelCmdPath)
 	if err != nil {
 		c.scrapeFailures.Inc()
 		ch <- c.scrapeFailures
@@ -234,7 +240,7 @@ func (c *AccelCollector) Collect(ch chan<- prometheus.Metric) {
 	}
 
 	if c.sessions {
-		c.collectSessions(ch)
+		c.collectSessions(ctx, ch)
 	}
 
 	// PPPoE
