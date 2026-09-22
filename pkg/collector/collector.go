@@ -8,6 +8,7 @@
 package collector
 
 import (
+	"context"
 	"log"
 	"time"
 
@@ -122,18 +123,24 @@ type AccelCollector struct {
 	accelCmdPath string
 	timeout      time.Duration
 
+	// sessions enables the optional per-session metrics (see sessions.go).
+	sessions bool
+
 	// scrapeFailures is the only persistent metric: a cumulative counter whose
 	// Inc is atomic and safe under concurrent scrapes.
 	scrapeFailures prometheus.Counter
 }
 
+// Option configures optional collector behaviour.
+type Option func(*AccelCollector)
+
 // NewAccelCollector creates a new AccelCollector. A non-positive timeout falls
 // back to DefaultScrapeTimeout.
-func NewAccelCollector(accelCmdPath string, timeout time.Duration) *AccelCollector {
+func NewAccelCollector(accelCmdPath string, timeout time.Duration, opts ...Option) *AccelCollector {
 	if timeout <= 0 {
 		timeout = DefaultScrapeTimeout
 	}
-	return &AccelCollector{
+	c := &AccelCollector{
 		accelCmdPath: accelCmdPath,
 		timeout:      timeout,
 		scrapeFailures: prometheus.NewCounter(prometheus.CounterOpts{
@@ -141,12 +148,21 @@ func NewAccelCollector(accelCmdPath string, timeout time.Duration) *AccelCollect
 			Help: "Number of errors while scraping accel-cmd.",
 		}),
 	}
+	for _, opt := range opts {
+		opt(c)
+	}
+	return c
 }
 
 // Describe implements the prometheus.Collector interface
 func (c *AccelCollector) Describe(ch chan<- *prometheus.Desc) {
 	for _, d := range allDescs {
 		ch <- d
+	}
+	if c.sessions {
+		for _, d := range sessionDescs {
+			ch <- d
+		}
 	}
 	c.scrapeFailures.Describe(ch)
 }
@@ -155,7 +171,12 @@ func (c *AccelCollector) Describe(ch chan<- *prometheus.Desc) {
 // metrics from a fresh snapshot, so it holds no mutable state between or during
 // scrapes and is safe to run concurrently.
 func (c *AccelCollector) Collect(ch chan<- prometheus.Metric) {
-	stats, err := parser.CollectStats(c.accelCmdPath, c.timeout)
+	// One deadline for every accel-cmd call in this scrape, so the total stays
+	// within the HTTP server's WriteTimeout however many collectors are on.
+	ctx, cancel := context.WithTimeout(context.Background(), c.timeout)
+	defer cancel()
+
+	stats, err := parser.CollectStats(ctx, c.accelCmdPath)
 	if err != nil {
 		c.scrapeFailures.Inc()
 		ch <- c.scrapeFailures
@@ -216,6 +237,10 @@ func (c *AccelCollector) Collect(ch chan<- prometheus.Metric) {
 		} {
 			ch <- prometheus.MustNewConstMetric(d, prometheus.GaugeValue, v, sessions.channel)
 		}
+	}
+
+	if c.sessions {
+		c.collectSessions(ctx, ch)
 	}
 
 	// PPPoE

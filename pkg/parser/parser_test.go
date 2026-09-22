@@ -1,6 +1,7 @@
 package parser
 
 import (
+	"context"
 	"math"
 	"os"
 	"path/filepath"
@@ -25,7 +26,7 @@ func fakeAccelCmd(t *testing.T, body string) string {
 
 func TestCollectStatsSuccess(t *testing.T) {
 	path := fakeAccelCmd(t, "cat <<'EOF'\n"+sampleStat+"EOF")
-	st, err := CollectStats(path, time.Second)
+	st, err := CollectStats(context.Background(), path)
 	if err != nil {
 		t.Fatalf("CollectStats: %v", err)
 	}
@@ -43,7 +44,9 @@ func TestCollectStatsTimeout(t *testing.T) {
 	// deterministically reproducing the pipe-drain hang on every platform.
 	path := fakeAccelCmd(t, "sleep 10 & wait")
 	start := time.Now()
-	if _, err := CollectStats(path, 50*time.Millisecond); err == nil {
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+	if _, err := CollectStats(ctx, path); err == nil {
 		t.Fatal("CollectStats: want timeout error, got nil")
 	}
 	// Deadline is 50ms; WaitDelay caps post-kill pipe drain at 2s. A grandchild
@@ -56,7 +59,7 @@ func TestCollectStatsTimeout(t *testing.T) {
 }
 
 func TestCollectStatsExecError(t *testing.T) {
-	if _, err := CollectStats("/nonexistent/accel-cmd-xyz", time.Second); err == nil {
+	if _, err := CollectStats(context.Background(), "/nonexistent/accel-cmd-xyz"); err == nil {
 		t.Fatal("CollectStats: want exec error, got nil")
 	}
 }

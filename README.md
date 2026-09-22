@@ -78,7 +78,11 @@ Usage of accel-exporter:
   -accel-cmd.path string
         Path to accel-cmd binary (default "accel-cmd")
   -accel-cmd.timeout duration
-        Maximum time to wait for accel-cmd to return (default 5s)
+        Maximum time for all accel-cmd calls in one scrape (default 5s)
+  -collector.sessions
+        Export per-session metrics (labelled by sid, username and realm)
+        from 'accel-cmd show sessions'; needs the shaper module and adds a
+        series set per live session
   -log.level string
         Log level (debug, info, warn, error) (default "info")
   -web.listen-address string
@@ -208,6 +212,34 @@ The exporter exposes the following metrics:
 - `accel_radius_interim_lost_1m`: Interim packets lost (1m window)
 - `accel_radius_interim_avg_time_5m_seconds`: Avg interim response (5m)
 - `accel_radius_interim_avg_time_1m_seconds`: Avg interim response (1m)
+
+**Per-session (opt-in with `-collector.sessions`; labels: `sid`, `username`, `realm`):**
+
+Read from `accel-cmd show sessions`. Off by default because it adds a series set for every live
+session (about 7 series per session): fine for a small fleet, a real cost at thousands of sessions.
+
+Requirements: the shaper module must be loaded. The exporter asks for its `rate-limit` column, and
+without the module accel-ppp rejects the whole command ("unknown column"), so none of these series
+appear (`accel_session_parse_errors` goes to 1).
+
+Labels: `sid` is the accel-ppp session id, `username` the login name, and `realm` the part of the
+username after `#` (e.g. `user1#isp@vdsl` -> `isp@vdsl`, `none` when there is none). The same
+username can have several live sessions (accel-ppp allows that unless `single-session` is set), so
+each session is its own series, told apart by `sid`. A reconnect gets a new `sid`, which starts a new
+series (counters start at zero) and ends the old one, so use `sum by (username)` to follow a
+subscriber across reconnects. There is deliberately no interface-name or IP label: the ppp interface
+number is reused by unrelated sessions and addresses change on every reconnect.
+
+- `accel_session_rx_bytes_total` / `accel_session_tx_bytes_total`: Bytes received from / sent to the subscriber in this session
+- `accel_session_rx_packets_total` / `accel_session_tx_packets_total`: Packets received from / sent to the subscriber
+- `accel_session_uptime_seconds`: Seconds since the session started
+- `accel_session_rx_rate_limit_bytes_per_second` / `accel_session_tx_rate_limit_bytes_per_second`: Shaper limit for traffic received from / sent to the subscriber, in bytes per second (accel-ppp reports it as `down/up` Kbit/s: down = tx, up = rx); absent for unshaped sessions
+- `accel_session_parse_errors`: Lines of `show sessions` output that could not be parsed in the last scrape
+
+Download utilisation of a line: `sum by (username) (rate(accel_session_tx_bytes_total[5m])) / max by (username) (accel_session_tx_rate_limit_bytes_per_second)`
+(upload: the `rx_` pair). Traffic in Mbit/s: `sum(rate(accel_session_tx_bytes_total{username="..."}[5m])) * 8 / 1e6`. If
+`accel-cmd show sessions` fails, only these series are dropped for that scrape; `accel_up` and the
+rest are unaffected.
 
 ## Releasing
 
